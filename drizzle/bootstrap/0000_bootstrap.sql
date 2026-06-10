@@ -28,11 +28,16 @@ end $$;
 -- The app's login role. NOINHERIT + fail-closed: without dbAs() injecting
 -- set_config('role','authenticated'), rls_client has NO table privileges at
 -- all — a forgotten claim injection yields zero rows, never leaked rows.
+--
+-- Password is set ONLY at creation, never re-altered on migrate: Supabase's
+-- pooler (Supavisor) caches role credentials per node, and repeated ALTER
+-- ROLE ... PASSWORD churns that cache — observed as transient 28P01
+-- "password authentication failed" on some pooler nodes (2026-06-10).
+-- To rotate: ALTER ROLE rls_client PASSWORD '...' manually, update
+-- RLS_CLIENT_PASSWORD + DATABASE_URL_RLS, and expect brief pooler flakiness.
 do $$ begin
   if not exists (select from pg_roles where rolname = 'rls_client') then
     create role rls_client login password '__RLS_CLIENT_PASSWORD__' noinherit;
-  else
-    alter role rls_client password '__RLS_CLIENT_PASSWORD__';
   end if;
 end $$;
 grant anon, authenticated to rls_client;
