@@ -10,6 +10,7 @@ import {
   notifications,
   opportunities,
   organizationMembers,
+  organizations,
   profiles,
   profileAccessGrants,
   providerCredentials,
@@ -295,6 +296,60 @@ describe("watch zones, notifications, profiles", () => {
       tx.select().from(profiles).where(eq(profiles.id, owner.id)),
     );
     expect(byTeammate).toHaveLength(1);
+  });
+
+  it("founder bootstrap: a user can create an org and claim ownership via dbAs", async () => {
+    // The exact onboarding path — caught a policy-recursion bug the
+    // service-role fixtures masked (2026-06-10).
+    const founder = await createUser("rlstest-founder");
+    const orgId = await dbAs(founder.id, async (tx) => {
+      const [org] = await tx
+        .insert(organizations)
+        .values({
+          name: "rlstest-bootstrap-org",
+          slug: `rlstest-bootstrap-${founder.id.slice(0, 8)}`,
+          createdByUserId: founder.id,
+        })
+        .returning({ id: organizations.id });
+      await tx.insert(organizationMembers).values({
+        organizationId: org.id,
+        userId: founder.id,
+        role: "owner",
+        acceptedAt: new Date(),
+      });
+      return org.id;
+    });
+    const members = await dbAs(founder.id, (tx) =>
+      tx.select().from(organizationMembers).where(eq(organizationMembers.organizationId, orgId)),
+    );
+    expect(members).toHaveLength(1);
+    expect(members[0].role).toBe("owner");
+  });
+
+  it("a stranger cannot claim ownership of an org they didn't create", async () => {
+    const founder = await createUser("rlstest-victim");
+    const stranger = await createUser("rlstest-claimer");
+    const orgId = await dbAs(founder.id, async (tx) => {
+      const [org] = await tx
+        .insert(organizations)
+        .values({
+          name: "rlstest-unclaimed-org",
+          slug: `rlstest-unclaimed-${founder.id.slice(0, 8)}`,
+          createdByUserId: founder.id,
+        })
+        .returning({ id: organizations.id });
+      return org.id; // deliberately no member row yet — the vulnerable moment
+    });
+    await expect(
+      dbAs(stranger.id, (tx) =>
+        tx.insert(organizationMembers).values({
+          organizationId: orgId,
+          userId: stranger.id,
+          role: "owner",
+          acceptedAt: new Date(),
+        }),
+      ),
+    ).rejects.toThrow(/row-level security/);
   });
 
   it("org member lists are isolated between orgs", async () => {

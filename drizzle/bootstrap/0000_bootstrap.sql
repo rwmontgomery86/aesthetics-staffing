@@ -137,6 +137,16 @@ language sql stable security definer set search_path = public as $f$
   )
 $f$;
 
+-- Definer to avoid self-referencing-policy recursion in the founder-bootstrap
+-- INSERT policy on organization_members (a policy may not query its own table
+-- directly).
+create or replace function public.org_has_any_member(org uuid) returns boolean
+language sql stable security definer set search_path = public as $f$
+  select exists (
+    select 1 from public.organization_members m where m.organization_id = org
+  )
+$f$;
+
 -- Definer to avoid self-referencing-policy recursion on thread_participants.
 create or replace function public.is_thread_participant(thread uuid) returns boolean
 language sql stable security definer set search_path = public as $f$
@@ -181,13 +191,22 @@ language sql security definer set search_path = public as $f$
     (auth.uid(), p_organization_id, p_provider_profile_id, p_document_kind, p_document_id, p_access_kind)
 $f$;
 
+-- Policy predicates: evaluated as the querying role, so both anon and
+-- authenticated need EXECUTE (they only return facts about the caller).
 grant execute on function
   public.is_platform_admin(),
   public.is_org_member(uuid),
   public.has_org_role(uuid, text),
   public.my_provider_profile_id(),
   public.org_has_grant(uuid),
-  public.is_thread_participant(uuid),
+  public.org_has_any_member(uuid),
+  public.is_thread_participant(uuid)
+to anon, authenticated, service_role;
+
+-- Append-only log writers: signed-in users and the service role only —
+-- anon could otherwise spam audit rows (SECURITY DEFINER) if the Data API
+-- were ever enabled.
+grant execute on function
   public.record_audit(text, text, text, uuid, uuid, jsonb, text, text),
   public.record_document_access(uuid, text, uuid, text, uuid)
-to anon, authenticated, service_role;
+to authenticated, service_role;

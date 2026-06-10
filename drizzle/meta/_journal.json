@@ -8,6 +8,13 @@
       "when": 1781113691565,
       "tag": "0000_happy_oracle",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781120007877,
+      "tag": "0001_calm_speed_demon",
+      "breakpoints": true
     }
   ]
 }

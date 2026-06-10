@@ -145,7 +145,8 @@ export const organizationMembers = pgTable(
     }),
     // Three legitimate insert paths: founder self-bootstrap as owner of an org
     // they just created; org admin adding a member; invitee accepting (email
-    // claim must match a live invite).
+    // claim must match a live invite). The "no members yet" check goes through
+    // a SECURITY DEFINER helper — a policy may not query its own table.
     pgPolicy("org_members_insert", {
       for: "insert",
       to: authenticatedRole,
@@ -157,9 +158,7 @@ export const organizationMembers = pgTable(
             select 1 from organizations o
             where o.id = ${t.organizationId} and o.created_by_user_id = ${authUid}
           )
-          and not exists (
-            select 1 from organization_members m where m.organization_id = ${t.organizationId}
-          )
+          and not (select public.org_has_any_member(${t.organizationId}))
         )
         or (
           ${t.userId} = ${authUid}
