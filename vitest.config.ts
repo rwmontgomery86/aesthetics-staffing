@@ -2,10 +2,15 @@ import { defineConfig } from "vitest/config";
 import path from "node:path";
 
 // Vitest doesn't read .env on its own (npm scripts use --env-file-if-exists).
-try {
-  process.loadEnvFile(path.resolve(__dirname, ".env"));
-} catch {
-  // CI injects env vars directly; absence of .env is fine.
+// .env.test wins so the test suite stays on the LOCAL database even when .env
+// points the app at hosted Supabase. CI injects env vars directly.
+for (const file of [".env.test", ".env"]) {
+  try {
+    process.loadEnvFile(path.resolve(__dirname, file));
+    break;
+  } catch {
+    // try the next file
+  }
 }
 
 export default defineConfig({

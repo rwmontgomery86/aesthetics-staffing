@@ -3,6 +3,7 @@ node_modules/
 
 # Environment — never commit secrets
 .env
+.env.test
 .env.local
 .env*.local
 
