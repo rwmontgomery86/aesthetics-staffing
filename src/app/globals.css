@@ -3,21 +3,24 @@
 @tailwind utilities;
 
 /* ── Design tokens ──────────────────────────────────────────────────────────
-   OpenChair (working name) visual identity: warm porcelain neutrals, deep
-   warm ink, muted brass accent, restrained sage support. Professional,
-   polished, slightly luxury — distinct from NotifEyes' navy/cyan utility
-   look. Values are RGB channel triplets so Tailwind opacity works. */
+   Palette derived from the logo (2026-06-10): single-line chair mark inside a
+   soft lilac ring; high-contrast serif wordmark in near-black + blush.
+   Primary actions are ink (quiet luxury); lilac is the brand accent; blush is
+   the warm supporting tone. Values are RGB triplets so Tailwind opacity works.
+   The wordmark/name remains tentative — assets live in /public/brand and are
+   referenced only via src/config/brand.ts. */
 
 :root {
-  --c-paper: 250 247 242; /* warm porcelain page background */
+  --c-paper: 250 248 246; /* warm white page background */
   --c-surface: 255 255 255; /* cards and panels */
-  --c-ink: 42 37 32; /* primary text — deep warm charcoal */
-  --c-ink-soft: 113 104 94; /* secondary text */
-  --c-line: 231 224 214; /* hairline borders */
-  --c-brass: 140 111 70; /* accent — muted brass */
-  --c-brass-deep: 111 87 51; /* accent hover / active */
-  --c-sage: 95 111 97; /* quiet support tone */
-  --c-danger: 163 61 46; /* muted terracotta red */
+  --c-ink: 24 21 18; /* near-black, warm — logo line color */
+  --c-ink-soft: 110 102 95; /* secondary text */
+  --c-line: 232 226 219; /* hairline borders */
+  --c-lilac: 126 95 163; /* brand accent, deepened for contrast */
+  --c-lilac-soft: 180 155 200; /* the logo ring — decorative fills */
+  --c-blush: 216 188 169; /* the wordmark blush — warm support */
+  --c-blush-deep: 166 121 91; /* blush with enough depth for text */
+  --c-danger: 163 61 46; /* muted terracotta */
   --c-success: 62 107 79; /* deep green */
 }
 
@@ -31,7 +34,7 @@
     @apply font-display tracking-tight;
   }
   ::selection {
-    @apply bg-brass/20;
+    @apply bg-lilac-soft/30;
   }
 }
 
@@ -40,16 +43,16 @@
     @apply rounded-card border border-line bg-surface shadow-card;
   }
   .oc-btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brass px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brass-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brass disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-paper transition-colors hover:bg-ink/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lilac disabled:opacity-50;
   }
   .oc-btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-brass/50 hover:text-brass-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brass disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-lilac-soft hover:text-lilac focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lilac disabled:opacity-50;
   }
   .oc-btn-ghost {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-ink/5 hover:text-ink;
   }
   .oc-input {
-    @apply w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-soft/60 focus:border-brass focus:outline-none focus:ring-2 focus:ring-brass/20;
+    @apply w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-soft/60 focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/20;
   }
   .oc-label {
     @apply mb-1.5 block text-sm font-medium text-ink;
@@ -58,6 +61,6 @@
     @apply mt-2 rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger;
   }
   .oc-notice {
-    @apply mt-2 rounded-lg border border-sage/30 bg-sage/5 px-3 py-2 text-sm text-sage;
+    @apply mt-2 rounded-lg border border-lilac/30 bg-lilac/5 px-3 py-2 text-sm text-lilac;
   }
 }

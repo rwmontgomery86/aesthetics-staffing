@@ -1,12 +1,20 @@
+import Image from "next/image";
 import Link from "next/link";
 import { brand } from "@/config/brand";
 
 export default function Home() {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-16">
-      <p className="text-sm font-medium uppercase tracking-widest text-brass">Private preview</p>
-      <h1 className="mt-3 text-5xl font-semibold leading-tight">{brand.name}</h1>
-      <p className="mt-4 max-w-xl text-lg text-ink-soft">{brand.tagline}</p>
+      <p className="text-sm font-medium uppercase tracking-widest text-lilac">Private preview</p>
+      <Image
+        src={brand.logo.main}
+        alt={brand.name}
+        width={260}
+        height={260}
+        priority
+        className="-ml-6 mt-2"
+      />
+      <p className="max-w-xl text-lg text-ink-soft">{brand.tagline}</p>
       <p className="mt-2 max-w-xl text-ink-soft">
         Providers draw watch zones and get alerted the moment a matching shift, role, or event
         posts. Businesses fill open chairs without the phone tree.

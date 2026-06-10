@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { brand } from "@/config/brand";
 import { magicLinkAction, signInAction } from "../actions";
@@ -12,8 +13,15 @@ export default async function LoginPage({
   const { error, notice, next } = await searchParams;
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
-      <h1 className="text-3xl font-semibold">{brand.name}</h1>
-      <p className="mt-1 text-ink-soft">Sign in to your account</p>
+      <Image
+        src={brand.logo.wordmark}
+        alt={brand.name}
+        width={206}
+        height={50}
+        priority
+        className="mx-auto h-[50px] w-auto"
+      />
+      <p className="mt-3 text-center text-ink-soft">Sign in to your account</p>
 
       <form action={signInAction} className="oc-card mt-8 space-y-4 p-6">
         <input type="hidden" name="next" value={next ?? ""} />
@@ -47,12 +55,12 @@ export default async function LoginPage({
       </form>
 
       <p className="mt-6 text-center text-sm text-ink-soft">
-        <Link href="/forgot-password" className="underline hover:text-brass-deep">
+        <Link href="/forgot-password" className="underline hover:text-lilac">
           Forgot password?
         </Link>
         <span className="mx-2">·</span>
         New here?{" "}
-        <Link href="/signup" className="underline hover:text-brass-deep">
+        <Link href="/signup" className="underline hover:text-lilac">
           Create an account
         </Link>
       </p>

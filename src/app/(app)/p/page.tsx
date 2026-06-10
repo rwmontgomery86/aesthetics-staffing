@@ -16,7 +16,7 @@ export default async function ProviderDashboard() {
           <p className="mt-1 text-sm text-ink-soft">
             Draw the areas where you want opportunity alerts.
           </p>
-          <p className="mt-3 text-xs font-medium uppercase tracking-wide text-brass">
+          <p className="mt-3 text-xs font-medium uppercase tracking-wide text-lilac">
             Coming in Phase 3
           </p>
         </section>
@@ -25,7 +25,7 @@ export default async function ProviderDashboard() {
           <p className="mt-1 text-sm text-ink-soft">
             Licenses, certifications, and documents — self-attest now, upload anytime.
           </p>
-          <p className="mt-3 text-xs font-medium uppercase tracking-wide text-brass">
+          <p className="mt-3 text-xs font-medium uppercase tracking-wide text-lilac">
             Coming in Phase 3
           </p>
         </section>
@@ -34,7 +34,7 @@ export default async function ProviderDashboard() {
           <p className="mt-1 text-sm text-ink-soft">
             Matching shifts and roles appear here the moment they post.
           </p>
-          <p className="mt-3 text-xs font-medium uppercase tracking-wide text-brass">
+          <p className="mt-3 text-xs font-medium uppercase tracking-wide text-lilac">
             Coming in Phase 6
           </p>
         </section>

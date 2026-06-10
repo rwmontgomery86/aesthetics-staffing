@@ -2,7 +2,9 @@
  * Single source of truth for brand identity. The working name is TENTATIVE and
  * not legally cleared — every user-visible surface (app chrome, emails, SMS,
  * metadata, SEO) must read from here or from NEXT_PUBLIC_APP_NAME, never from
- * a string literal. CI greps for stray hard-coded brand strings (Phase 10).
+ * a string literal. Logo files live in /public/brand — swapping those files +
+ * this config + env vars IS the rebrand path. CI greps for stray hard-coded
+ * brand strings (Phase 10).
  *
  * Client-safe: no server-only imports.
  */
@@ -12,4 +14,12 @@ export const brand = {
   shortName: process.env.NEXT_PUBLIC_APP_SHORT_NAME ?? process.env.NEXT_PUBLIC_APP_NAME ?? "OpenChair",
   /** Tagline is placeholder copy until the name/brand is finalized. */
   tagline: "Georgia's geo-alert staffing marketplace for aesthetics & wellness",
+  logo: {
+    /** Chair mark + wordmark, stacked — hero/marketing use. */
+    main: "/brand/main-logo.png",
+    /** Chair mark in the lilac ring — favicon, avatars, tight squares. */
+    icon: "/brand/icon.png",
+    /** Wordmark only — app header, auth pages, email headers. */
+    wordmark: "/brand/wordmark.png",
+  },
 } as const;

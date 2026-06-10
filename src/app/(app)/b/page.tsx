@@ -21,7 +21,7 @@ export default async function BusinessDashboard() {
           <p className="mt-1 text-sm text-ink-soft">
             Add the places providers will work — each gets its own map pin.
           </p>
-          <p className="mt-3 text-xs font-medium uppercase tracking-wide text-brass">
+          <p className="mt-3 text-xs font-medium uppercase tracking-wide text-lilac">
             Coming in Phase 4
           </p>
         </section>
@@ -30,7 +30,7 @@ export default async function BusinessDashboard() {
           <p className="mt-1 text-sm text-ink-soft">
             Invite teammates who can post opportunities or manage the account.
           </p>
-          <p className="mt-3 text-xs font-medium uppercase tracking-wide text-brass">
+          <p className="mt-3 text-xs font-medium uppercase tracking-wide text-lilac">
             Coming in Phase 4
           </p>
         </section>
@@ -39,7 +39,7 @@ export default async function BusinessDashboard() {
           <p className="mt-1 text-sm text-ink-soft">
             Shifts, roles, and events — matching providers get alerted instantly.
           </p>
-          <p className="mt-3 text-xs font-medium uppercase tracking-wide text-brass">
+          <p className="mt-3 text-xs font-medium uppercase tracking-wide text-lilac">
             Coming in Phase 5
           </p>
         </section>

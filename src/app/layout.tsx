@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { Inter, Playfair_Display } from "next/font/google";
 import { brand } from "@/config/brand";
 import "./globals.css";
 
-const display = Fraunces({
+// Playfair's high-contrast Didone forms match the wordmark's typography.
+const display = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-display",
-  axes: ["opsz"],
 });
 const sans = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
