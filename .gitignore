@@ -20,3 +20,4 @@ test-results/
 # Misc
 .DS_Store
 *.log
+.geo-cache/

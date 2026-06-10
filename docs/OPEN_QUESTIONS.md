@@ -2,6 +2,12 @@
 
 Organized by what blocks coding vs. what can be decided later. Where a default is proposed, coding proceeds with the default unless overridden.
 
+## Decisions log (append-only)
+
+- **2026-06-10 — Phase 1 approved and started.** Founder accepted all Section A proposed defaults: draft GA credential rules seeded now and validated before launch (A.1); free-text supervision context + post-time attestation, structured org credentials deferred to V2 (A.2 — `locations.supervision_context` + `opportunities.supervision_attested_at`); all provider types self-attest-capable with risk-tiered review (A.3); warn-and-flag contact masking (A.4); transactional-only SMS pending 10DLC registration (A.5); `dbAs()` RLS enforcement path confirmed (A.6); slot_count column exists, MVP UI fixed at 1 (A.7); Census ZCTA/places with centroid fallback (A.8).
+- **2026-06-10 — Schema deviations from DATABASE_SCHEMA.md during Phase 1 build:** (1) dropped `provider_profiles.current_employer_private` — RLS grants businesses row-level access, so a "never displayed" column on that row was a leak footgun; (2) moved org `internal_notes`/`admin_flags` to a separate admin-only `organization_admin_notes` table for the same reason; (3) CHECK constraints live in `drizzle/manual/` (drizzle-kit 0.28 can't emit them).
+- **2026-06-10 — New open question from seeding (→ A.9 below):** credential requirements are AND-semantics; "GA esthetician OR master cosmetologist license" can't be expressed. Draft seed marks the alternative in `notes`. Needs either an any-of requirement-group model or attorney guidance on which single license to require.
+
 ## A. Must answer before coding starts
 
 ### Product / compliance
@@ -16,7 +22,9 @@ Organized by what blocks coding vs. what can be decided later. Where a default i
 
 6. **Confirm the RLS enforcement path** (TECHNICAL_ARCHITECTURE §5: `dbAs()` + `rls_client` role + ESLint fence). Retrofitting later = rewriting every server action. Needs explicit sign-off because it's the least-reversible technical decision.
 7. **Occurrence/booking spine stress test.** Confirm the model handles: one recurring post, `slot_count 2`, provider A accepted for Mondays, provider B for Wednesdays, then one Monday rescheduled. The schema supports it (see DATABASE_SCHEMA §5); confirm the *product* wants slot_count > 1 in MVP UI or column-only. *Proposed default: column exists, MVP UI fixed at 1.*
-8. **Geo boundary dataset acceptance.** ZCTAs approximate USPS ZIP routes; Census places miss some unincorporated communities. Accept knowingly (proposed) with centroid+10mi fallback, or invest in a commercial boundary dataset?
+8. **Geo boundary dataset acceptance.** ZCTAs approximate USPS ZIP routes; Census places miss some unincorporated communities. Accept knowingly (proposed) with centroid+10mi fallback, or invest in a commercial boundary dataset? *(Accepted 2026-06-10; GA data loaded: 675 places, 751 ZCTAs.)*
+
+9. **Credential requirement OR-semantics** *(added 2026-06-10 during seeding)*. GA aesthetician licensure can be satisfied by an esthetician license **or** a master cosmetologist license, but `credential_requirements` rows are AND-semantics. Options: (a) attorney confirms one canonical license to require; (b) add a `requirement_group_id` so any-of groups are expressible; (c) a combined "GA esthetics licensure" credential type. Draft seed requires the esthetician license and notes the alternative. Decide before provider onboarding UI (Phase 3).
 
 ## B. Should answer during build (doesn't block Phase 1–2)
 

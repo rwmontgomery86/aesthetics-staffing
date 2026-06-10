@@ -4,7 +4,23 @@
 
 A Georgia-first, geo-alert staffing marketplace for aesthetics, beauty, spa, med spa, and wellness. Individual providers create **watch zones** (radius, polygon, city, ZIP) with service/credential/pay/availability filters and get alerted the moment a business posts a matching opportunity. Architecturally inspired by NotifEyes (optometry staffing); rebuilt clean, not forked.
 
-**Status:** Planning phase. No application code exists yet. These documents are the approved planning package; coding begins with Phase 1 (database schema + RLS) after sign-off.
+**Status:** Phase 1 (database, schema, RLS) is built and verified — see [IMPLEMENTATION_PHASES.md](docs/IMPLEMENTATION_PHASES.md) for the roadmap and [OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md) for the decisions log. Phase 2 (auth & roles) is next.
+
+## Development
+
+```bash
+npm install
+# Postgres with PostGIS on localhost:5432 (Postgres.app works), then:
+createdb aesthetics_staffing   # or: psql -c "create database aesthetics_staffing"
+cp .env.example .env           # adjust DATABASE_URL_* for your local user
+npm run db:migrate             # bootstrap (roles/helpers) + drizzle + manual SQL
+npm run db:seed                # taxonomies, credential types, DRAFT GA requirements
+npm run db:seed:demo           # local-only demo users/org/zone/opportunity
+npm run geo:load               # GA Census boundaries (~70 MB download, cached)
+npm test                       # RLS policy-matrix suite (requires migrate + seed)
+```
+
+**Security model in one paragraph:** user-facing queries go through `dbAs()` in [src/db/client.ts](src/db/client.ts) — a `rls_client` role with per-transaction JWT-claim injection, so RLS policies (defined beside each table in [src/db/schema/](src/db/schema)) are enforced on every query and fail closed. The service-role pool in [src/db/service.ts](src/db/service.ts) bypasses RLS and is import-fenced by ESLint to workers, matching, migrations/seeds, and webhooks. Append-only logs (`audit_logs`, `document_access_logs`) accept writes only via `SECURITY DEFINER` functions.
 
 ## Document map
 
