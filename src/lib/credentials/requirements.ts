@@ -121,6 +121,91 @@ export function summarizeRequirements(
   return chips.sort((a, b) => rank(a) - rank(b));
 }
 
+/**
+ * Apply-time chips: the same engine, but scoped to what THE OPPORTUNITY asks
+ * for (its provider types, services, and those services' categories) instead
+ * of everything the provider does. Stored verbatim on the application as the
+ * credential snapshot, so the business reviews exactly what the provider saw.
+ */
+export interface CredentialSnapshotChip {
+  credentialTypeId: string;
+  name: string;
+  level: RequirementLevel | null;
+  status: CredentialInput["status"];
+  derived: "expired" | "expiring_soon" | null;
+  isWarning: boolean;
+}
+
+export async function getOpportunityCredentialChips(
+  tx: Tx,
+  providerProfileId: string,
+  opportunity: { serviceIds: string[]; providerTypeIds: string[] },
+  state: string,
+): Promise<CredentialSnapshotChip[]> {
+  const categoryRows = opportunity.serviceIds.length
+    ? await tx
+        .select({ categoryId: services.categoryId })
+        .from(services)
+        .where(inArray(services.id, opportunity.serviceIds))
+    : [];
+  const categoryIds = [...new Set(categoryRows.map((row) => row.categoryId))];
+
+  const attachmentClauses = [
+    opportunity.providerTypeIds.length > 0
+      ? inArray(credentialRequirements.providerTypeId, opportunity.providerTypeIds)
+      : sql`false`,
+    opportunity.serviceIds.length > 0
+      ? inArray(credentialRequirements.serviceId, opportunity.serviceIds)
+      : sql`false`,
+    categoryIds.length > 0 ? inArray(credentialRequirements.serviceCategoryId, categoryIds) : sql`false`,
+  ];
+
+  const requirementRows = await tx
+    .select({
+      credentialTypeId: credentialRequirements.credentialTypeId,
+      level: credentialRequirements.level,
+    })
+    .from(credentialRequirements)
+    .where(
+      and(
+        eq(credentialRequirements.active, true),
+        or(eq(credentialRequirements.state, state), isNull(credentialRequirements.state)),
+        or(...attachmentClauses),
+      ),
+    );
+
+  const credentialRows = await tx
+    .select({
+      id: providerCredentials.id,
+      credentialTypeId: providerCredentials.credentialTypeId,
+      status: providerCredentials.status,
+      expiresAt: providerCredentials.expiresAt,
+    })
+    .from(providerCredentials)
+    .where(eq(providerCredentials.providerProfileId, providerProfileId));
+
+  // Only what the post asks for — extras the provider holds are noise here.
+  const chips = summarizeRequirements(requirementRows, credentialRows).filter(
+    (chip) => chip.level != null,
+  );
+  if (chips.length === 0) return [];
+
+  const names = await tx
+    .select({ id: credentialTypes.id, name: credentialTypes.name })
+    .from(credentialTypes)
+    .where(inArray(credentialTypes.id, chips.map((chip) => chip.credentialTypeId)));
+  const nameById = new Map(names.map((row) => [row.id, row.name]));
+
+  return chips.map((chip) => ({
+    credentialTypeId: chip.credentialTypeId,
+    name: nameById.get(chip.credentialTypeId) ?? "Credential",
+    level: chip.level,
+    status: chip.status,
+    derived: chip.derived,
+    isWarning: chip.isWarning,
+  }));
+}
+
 /** DB wrapper: gather inputs for the signed-in provider and summarize. */
 export async function getCredentialSummary(tx: Tx, providerProfileId: string, state: string) {
   const myTypes = await tx

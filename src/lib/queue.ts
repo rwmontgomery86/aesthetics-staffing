@@ -21,7 +21,34 @@ export const QUEUES = {
   credentialExpiryScan: "credential-expiry-scan",
   bookingReminders: "booking-reminders",
   applicationStaleNudge: "application-stale-nudge",
+  notifyEvent: "notify-event",
 } as const;
+
+/**
+ * Application/booking lifecycle events. Server actions enqueue these instead
+ * of dispatching notifications themselves: notification rows belong to OTHER
+ * users, which the actor's RLS connection can't (and shouldn't) write — the
+ * worker handles them with the service role, same shape as fanout.
+ * Multi-row events carry every application id from one act (a multi-date
+ * apply, a grouped offer) so the counterparty gets ONE notification.
+ */
+export type NotifyEvent =
+  | { kind: "application_received"; applicationIds: string[] }
+  | { kind: "application_withdrawn"; applicationIds: string[] }
+  | { kind: "application_offered"; applicationIds: string[] }
+  | { kind: "application_declined"; applicationIds: string[]; by: "provider" | "business" }
+  | { kind: "booking_confirmed"; bookingId: string }
+  | {
+      kind: "booking_canceled";
+      bookingId: string;
+      /** null = the whole series was canceled; ids = just these dates. */
+      occurrenceIds: string[] | null;
+      by: "provider" | "business";
+    }
+  | { kind: "no_show_reported"; bookingId: string; occurrenceId: string; absent: "provider" | "business" }
+  | { kind: "no_show_disputed"; bookingId: string; occurrenceId: string }
+  | { kind: "completion_recorded"; completionRecordId: string }
+  | { kind: "completion_status"; completionRecordId: string; status: "confirmed" | "disputed" };
 
 const globalForBoss = globalThis as unknown as { __pgBoss?: Promise<PgBoss> };
 
@@ -74,6 +101,11 @@ export async function enqueueDeliverEmail(deliveryId: number): Promise<void> {
 export async function enqueueDeliverSms(deliveryId: number): Promise<void> {
   const boss = await getBoss();
   await boss.send(QUEUES.deliverSms, { deliveryId }, DELIVER_OPTS);
+}
+
+export async function enqueueNotifyEvent(event: NotifyEvent): Promise<void> {
+  const boss = await getBoss();
+  await boss.send(QUEUES.notifyEvent, event, DELIVER_OPTS);
 }
 
 /**

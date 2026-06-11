@@ -36,6 +36,9 @@ export const profiles = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    // Contact stays hidden until a booking exists: org-mates see each other,
+    // and a business sees a provider's row (name/phone) only once both sides
+    // have confirmed a booking (the bookings row is the reveal gate).
     pgPolicy("profiles_select", {
       for: "select",
       to: authenticatedRole,
@@ -43,7 +46,7 @@ export const profiles = pgTable(
         select 1 from organization_members m1
         join organization_members m2 on m2.organization_id = m1.organization_id
         where m1.user_id = ${authUid} and m2.user_id = ${t.id}
-      )`,
+      ) or (select public.org_has_confirmed_booking_with(${t.id}))`,
     }),
     pgPolicy("profiles_update_own", {
       for: "update",

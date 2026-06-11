@@ -22,6 +22,20 @@
       "when": 1781168003981,
       "tag": "0002_yummy_ares",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781204606227,
+      "tag": "0003_silent_maelstrom",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781208477130,
+      "tag": "0004_classy_victor_mancha",
+      "breakpoints": true
     }
   ]
 }

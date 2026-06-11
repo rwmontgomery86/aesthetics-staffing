@@ -18,7 +18,7 @@ IMPLEMENTATION_PHASES, OPEN_QUESTIONS (with the append-only decisions log), BRAN
 
 ## Cursor
 
-**Phases 0–6 complete** (see IMPLEMENTATION_PHASES.md):
+**Phases 0–7 complete** (see IMPLEMENTATION_PHASES.md):
 schema+RLS, auth+multi-hat accounts, provider onboarding + credentials + private storage +
 watch-zone editor, business side (org profile, locations with geocoding, team invites),
 opportunity posting (all MVP types, layered pay enforcement, DST-safe occurrence
@@ -26,15 +26,20 @@ materialization, reach estimate, public `/o/[id]`), matching worker & notificati
 worker `npm run worker` + railway.json, Stage-1 SQL prefilter + Stage-2 pure scoring,
 opportunity_alerts dedup + once-max re-alert, dispatcher → deliveries → Resend/Twilio
 console-stub adapters, urgent<24h SMS forcing, STOP/HELP + delivery webhooks, in-app bell
-polling 25s, crons). All exit criteria verified live on hosted with the worker running.
+polling 25s, crons), applications & bookings (apply with frozen credential snapshot + auto
+profile_access_grants, applicant review with chips, offer/accept = the dual terms
+click-throughs, provider-creates-booking RLS path, contact reveal gated on the booking row,
+occurrence slot trigger with overbooking stop, cancellation/no-show/dispute,
+completion_records, notify-event worker pipeline, logged `/api/files/sign`, permanent CI
+spine test post→alert→apply→offer→book→complete). All verified live on hosted.
 
-**Next: Phase 7 — applications & bookings** (apply flow with credential snapshot +
-profile_access_grants, applicant review with credential/portfolio chips, selection, dual
-confirmation, bookings/booking_occurrences, cancellation/no-show/completion, e2e spine test
-post→alert→apply→book→complete). Standing: worker needs a Railway service (~$5/mo, founder
-confirms); Resend account for real email (free tier); Twilio adapter stays stubbed until the
-10DLC registration clears (founder waiting on business confirmation as of 2026-06-11). Then
-Phase 8 (messaging), 9 (admin), 10 (SEO), 11 (hardening/launch).
+**Next: Phase 8 — messaging** (context-bound threads, participants, unread counts, system
+messages on milestones, pre-reveal contact regex warn+flag, patient-info composer warning,
+admin thread access audited). Standing: `SUPABASE_SERVICE_ROLE_KEY` needed in `.env` before
+businesses can open credential docs/portfolios (`/api/files/sign` 503s until then); worker
+needs a Railway service (~$5/mo, founder confirms); Resend account for real email (free
+tier); Twilio adapter stays stubbed until the 10DLC registration clears (founder waiting on
+business confirmation as of 2026-06-11). Then Phase 9 (admin), 10 (SEO), 11 (hardening/launch).
 
 Standing founder action items: Twilio 10DLC registration; attorney review per
 COMPLIANCE_AND_TRUST.md §8 (the 16 GA credential-requirement seed rows are DRAFT until then).

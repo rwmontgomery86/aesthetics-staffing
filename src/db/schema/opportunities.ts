@@ -78,11 +78,15 @@ export const opportunities = pgTable(
   (t) => [
     index("opportunities_status_posted_idx").on(t.status, t.postedAt),
     index("opportunities_org_idx").on(t.organizationId),
+    // provider_has_applied: an applicant/booked provider keeps seeing the
+    // post after it fills or expires — their booked dates and application
+    // history must not vanish (found in the Phase 7 live walkthrough).
     pgPolicy("opportunities_select", {
       for: "select",
       to: [anonRole, authenticatedRole],
       using: sql`${t.status} = 'posted'
         or (select public.is_org_member(${t.organizationId}))
+        or (select public.provider_has_applied(${t.id}))
         or ${isAdmin}`,
     }),
     pgPolicy("opportunities_insert", {
@@ -212,6 +216,9 @@ export const applications = pgTable(
     message: text("message"),
     source: text("source").notNull().default("search"), // 'search' | 'watch_alert' | 'invite'
     watchZoneId: uuid("watch_zone_id"),
+    /** Credential chips frozen at apply time, so the business reviews exactly
+     *  what the provider saw when the warn-don't-block notice was shown. */
+    credentialSnapshot: jsonb("credential_snapshot").notNull().default(sql`'[]'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     statusChangedAt: timestamp("status_changed_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -290,10 +297,24 @@ export const bookings = pgTable(
       using: sql`${t.providerProfileId} = ${myProviderId} or ${isAdmin}
         or (select public.is_org_member(${t.organizationId}))`,
     }),
+    // Two creation paths, both requiring the denorm columns to match the
+    // opportunity: the org books directly, or the provider books themselves
+    // by accepting an offer (the accept action is the second confirmation —
+    // the first was the business's terms click-through at offer time).
     pgPolicy("bookings_insert", {
       for: "insert",
       to: authenticatedRole,
-      withCheck: sql`(select public.has_org_role(${t.organizationId}, 'poster'))`,
+      withCheck: sql`exists (select 1 from opportunities o
+          where o.id = ${t.opportunityId}
+            and o.organization_id = ${t.organizationId}
+            and o.location_id = ${t.locationId})
+        and ((select public.has_org_role(${t.organizationId}, 'poster'))
+          or (${t.providerProfileId} = ${myProviderId}
+              and exists (select 1 from applications a
+                    where a.id = ${t.applicationId}
+                      and a.provider_profile_id = ${t.providerProfileId}
+                      and a.opportunity_id = ${t.opportunityId}
+                      and a.status in ('offered', 'accepted'))))`,
     }),
     pgPolicy("bookings_update", {
       for: "update",

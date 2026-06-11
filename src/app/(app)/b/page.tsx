@@ -1,9 +1,13 @@
 import Link from "next/link";
-import { and, count, eq, gt, isNull } from "drizzle-orm";
+import { and, count, eq, gt, inArray, isNull } from "drizzle-orm";
 import { dbAs } from "@/db/client";
 import {
+  applications,
+  bookingOccurrences,
+  bookings,
   locations,
   opportunities,
+  opportunityOccurrences,
   organizationInvites,
   organizationMembers,
   organizations,
@@ -75,12 +79,39 @@ export default async function BusinessDashboard({
       .select({ value: count() })
       .from(opportunities)
       .where(eq(opportunities.organizationId, org.id));
+    const [pendingApplications] = await tx
+      .select({ value: count() })
+      .from(applications)
+      .innerJoin(opportunities, eq(opportunities.id, applications.opportunityId))
+      .where(
+        and(
+          eq(opportunities.organizationId, org.id),
+          inArray(applications.status, ["submitted", "viewed", "shortlisted"]),
+        ),
+      );
+    const [upcomingDates] = await tx
+      .select({ value: count() })
+      .from(bookingOccurrences)
+      .innerJoin(bookings, eq(bookings.id, bookingOccurrences.bookingId))
+      .innerJoin(
+        opportunityOccurrences,
+        eq(opportunityOccurrences.id, bookingOccurrences.occurrenceId),
+      )
+      .where(
+        and(
+          eq(bookings.organizationId, org.id),
+          eq(bookingOccurrences.status, "confirmed"),
+          gt(opportunityOccurrences.startsAt, new Date()),
+        ),
+      );
     return {
       orgRow,
       locations: locationCount.value,
       members: memberCount.value,
       pendingInvites: pendingInvites.value,
       opportunities: opportunityCount.value,
+      pendingApplications: pendingApplications.value,
+      upcomingDates: upcomingDates.value,
     };
   });
 
@@ -95,6 +126,19 @@ export default async function BusinessDashboard({
         {org.role === "owner" ? "the owner" : org.role === "admin" ? "an admin" : "a poster"}.
       </p>
       {notice ? <p className="oc-notice mt-4">{notice}</p> : null}
+
+      {data.pendingApplications > 0 || data.upcomingDates > 0 ? (
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <Link href="/b/opportunities" className="oc-card p-4 hover:border-lilac">
+            <p className="text-2xl font-semibold">{data.pendingApplications}</p>
+            <p className="text-sm text-ink-soft">Applications to review</p>
+          </Link>
+          <Link href="/b/bookings" className="oc-card p-4 hover:border-lilac">
+            <p className="text-2xl font-semibold">{data.upcomingDates}</p>
+            <p className="text-sm text-ink-soft">Upcoming booked dates</p>
+          </Link>
+        </div>
+      ) : null}
 
       <div className="mt-8 space-y-3">
         <ChecklistItem
@@ -135,7 +179,7 @@ export default async function BusinessDashboard({
           title="Post an opportunity"
           detail={
             data.opportunities > 0
-              ? `${data.opportunities} opportunit${data.opportunities > 1 ? "ies" : "y"} — providers get alerted when delivery launches (Phase 6).`
+              ? `${data.opportunities} opportunit${data.opportunities > 1 ? "ies" : "y"} — matching providers are alerted the moment you post.`
               : "Shifts, roles, and events — matching providers get alerted instantly."
           }
         />

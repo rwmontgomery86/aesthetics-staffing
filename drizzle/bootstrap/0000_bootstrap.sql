@@ -161,6 +161,50 @@ language sql stable security definer set search_path = public as $f$
   )
 $f$;
 
+-- A provider who applied to (or booked) an opportunity keeps seeing it after
+-- it leaves 'posted' — their application history and booked dates must not
+-- vanish when the post fills or expires. Definer, because opportunities'
+-- policy referencing applications (whose policy references opportunities
+-- back) would recurse.
+create or replace function public.provider_has_applied(opp uuid) returns boolean
+language sql stable security definer set search_path = public as $f$
+  select exists (
+    select 1
+    from public.applications a
+    join public.provider_profiles pp on pp.id = a.provider_profile_id
+    where a.opportunity_id = opp and pp.user_id = auth.uid()
+  )
+$f$;
+
+-- Contact reveal (Phase 7): a bookings row only exists once BOTH sides have
+-- confirmed, so its existence IS the reveal gate — once revealed, a later
+-- cancellation can't un-share a phone number.
+create or replace function public.org_has_confirmed_booking_with(target uuid) returns boolean
+language sql stable security definer set search_path = public as $f$
+  select exists (
+    select 1
+    from public.bookings b
+    join public.provider_profiles pp on pp.id = b.provider_profile_id
+    join public.organization_members m on m.organization_id = b.organization_id
+    where pp.user_id = target
+      and m.user_id = auth.uid()
+  )
+$f$;
+
+-- Email lives in auth.users (clients can't read it); this hands a booking
+-- party exactly one address — their counterparty's — and nothing else.
+create or replace function public.booking_counterparty_email(booking uuid) returns text
+language sql stable security definer set search_path = public, auth as $f$
+  select u.email::text
+  from public.bookings b
+  join public.provider_profiles pp on pp.id = b.provider_profile_id
+  join public.opportunities o on o.id = b.opportunity_id
+  join auth.users u
+    on u.id = case when pp.user_id = auth.uid() then o.posted_by_user_id else pp.user_id end
+  where b.id = booking
+    and (pp.user_id = auth.uid() or public.is_org_member(b.organization_id))
+$f$;
+
 -- ── Append-only log writers ─────────────────────────────────────────────────
 -- Direct DML on audit_logs / document_access_logs is revoked from clients
 -- (drizzle/manual grants); these definer functions are the only write path.
@@ -205,8 +249,14 @@ grant execute on function
   public.my_provider_profile_id(),
   public.org_has_grant(uuid),
   public.org_has_any_member(uuid),
-  public.is_thread_participant(uuid)
+  public.is_thread_participant(uuid),
+  public.org_has_confirmed_booking_with(uuid),
+  public.provider_has_applied(uuid)
 to anon, authenticated, service_role;
+
+-- Reads auth.users — signed-in booking parties only, never anon.
+grant execute on function public.booking_counterparty_email(uuid)
+to authenticated, service_role;
 
 -- Append-only log writers: signed-in users and the service role only —
 -- anon could otherwise spam audit rows (SECURITY DEFINER) if the Data API

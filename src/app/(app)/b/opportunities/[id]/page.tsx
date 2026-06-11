@@ -4,6 +4,7 @@ import { DateTime } from "luxon";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { dbAs } from "@/db/client";
 import {
+  applications,
   locations,
   opportunities,
   opportunityOccurrences,
@@ -72,10 +73,17 @@ export default async function ManageOpportunityPage({
       .from(opportunityOccurrences)
       .where(eq(opportunityOccurrences.opportunityId, id))
       .orderBy(asc(opportunityOccurrences.startsAt));
-    return { opp, location, oppServices, oppProviderTypes, occurrences };
+    const applicationRows = await tx
+      .select({ status: applications.status })
+      .from(applications)
+      .where(eq(applications.opportunityId, id));
+    return { opp, location, oppServices, oppProviderTypes, occurrences, applicationRows };
   });
   if (!data) notFound();
-  const { opp, location, oppServices, oppProviderTypes, occurrences } = data;
+  const { opp, location, oppServices, oppProviderTypes, occurrences, applicationRows } = data;
+  const pendingApplications = applicationRows.filter((row) =>
+    ["submitted", "viewed", "shortlisted", "offered"].includes(row.status),
+  ).length;
 
   // The reach estimate (aggregate only) is recomputed on render for drafts and
   // posted opportunities — the number a poster sees before/after going live.
@@ -133,12 +141,17 @@ export default async function ManageOpportunityPage({
           <p className="font-medium">~{reach} provider{reach === 1 ? "" : "s"} watching this area</p>
           <p className="mt-1 text-sm text-ink-soft">
             Providers whose watch zones cover this location and whose filters this post passes.
-            Alert delivery turns on in Phase 6{opp.status === "draft" ? " — posting now makes it visible on its public page" : ""}.
+            {opp.status === "draft" ? " They're alerted the moment you post." : " They were alerted when this posted."}
           </p>
         </div>
       ) : null}
 
       <div className="mt-6 flex flex-wrap gap-3">
+        {applicationRows.length > 0 ? (
+          <Link href={`/b/opportunities/${opp.id}/applicants`} className="oc-btn">
+            Applicants ({pendingApplications} pending)
+          </Link>
+        ) : null}
         {opp.status === "draft" || opp.status === "expired" ? (
           <form action={postOpportunityAction}>
             <input type="hidden" name="organizationId" value={org.id} />

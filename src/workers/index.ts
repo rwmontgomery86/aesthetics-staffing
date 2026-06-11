@@ -1,6 +1,7 @@
-import { getBoss, QUEUES } from "@/lib/queue";
+import { getBoss, QUEUES, type NotifyEvent } from "@/lib/queue";
 import { fanoutOpportunityPosted, fanoutOpportunityUpdated } from "@/lib/matching/fanout";
 import { deliverEmailJob, deliverSmsJob } from "./jobs/deliver";
+import { notifyEventJob } from "./jobs/events";
 import {
   applicationStaleNudgeJob,
   bookingRemindersJob,
@@ -52,6 +53,12 @@ async function main() {
   await boss.work<DeliveryJobData>(QUEUES.deliverSms, { batchSize: 10 }, async (jobs) => {
     for (const job of jobs) {
       await deliverSmsJob(job.data.deliveryId);
+    }
+  });
+
+  await boss.work<NotifyEvent>(QUEUES.notifyEvent, { batchSize: 10 }, async (jobs) => {
+    for (const job of jobs) {
+      await notifyEventJob(job.data);
     }
   });
 

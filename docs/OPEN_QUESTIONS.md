@@ -4,6 +4,58 @@ Organized by what blocks coding vs. what can be decided later. Where a default i
 
 ## Decisions log (append-only)
 
+- **2026-06-11 — Phase 7 shipped (applications & bookings).** Apply flow on `/o/[id]` for
+  signed-in providers: whole-series or specific-dates scope (one row per date, the partial
+  uniques dedup), optional message, **credential chips frozen onto the application**
+  (`applications.credential_snapshot jsonb` — schema addition vs DATABASE_SCHEMA.md, implementing
+  the documented snapshot requirement) via a new opportunity-scoped requirements summary
+  (`getOpportunityCredentialChips`); applying upserts `profile_access_grants` (a revoked grant
+  reopens on re-apply) and auto-detects `watch_alert` source from the alerts ledger. Applicant
+  review at `/b/opportunities/[id]/applicants` grouped per provider (snapshot chips, message,
+  shortlist/offer/decline on the whole candidacy); `/b/providers/[id]` profile view (basics for
+  any business member; credentials + portfolio only with a grant; **pay floors never selected**);
+  `/api/files/sign` is the logged third-party signing path (RLS authorizes via the caller's own
+  view, `record_document_access` writes the audit row, service-role storage client signs 5-min
+  URLs — returns 503 until `SUPABASE_SERVICE_ROLE_KEY` lands in `.env`, founder errand open).
+  **Dual confirmation maps to the offer/accept pair**: the business's terms click-through happens
+  at offer time (its `status_changed_at` becomes `business_confirmed_at`/`terms_accepted_business_at`),
+  the provider's at accept — the accept action creates the booking, so a `bookings` row existing
+  IS the both-sides-confirmed state (no pending booking status needed). New RLS paths:
+  `bookings_insert` now admits the provider holding an offered/accepted application (with the
+  denorm org/location pinned to the opportunity row); `profiles_select` gains
+  `org_has_confirmed_booking_with()` so **contact reveals only once a booking exists** (the
+  booking row is the gate; email comes from `booking_counterparty_email()`, a definer that hands
+  each party exactly their counterparty's address). Occurrence open↔booked is a SECURITY DEFINER
+  trigger (`drizzle/manual/0006`) recounting confirmed `booking_occurrences` vs `slot_count` —
+  the two writers sit on opposite sides of RLS — with a hard overbooking stop (the FOR UPDATE
+  serializes racing accepts; the loser errors) and future-only reopening on cancellation.
+  Worker: new `notify-event` queue; server actions enqueue lifecycle events
+  (received/withdrawn/offered/declined/confirmed/canceled/no-show/disputed/completion) and
+  `src/workers/jobs/events.ts` dispatches with the service role, deduped per (user, kind,
+  eventKey) so retries never double-send; `booking_confirmed` also expires competing applications
+  on filled dates, flips the opportunity to `filled` when nothing open remains, and notifies the
+  losers once per opportunity. Booking pages both sides (lists + detail: cancel series/date with
+  reason, report/dispute no-show, business completes ended dates → editable-units
+  `completion_records`, provider confirms/disputes). State machines: `application.ts` +
+  `booking.ts` per the documented transitions. **Two real bugs found by live walkthrough
+  (tradition holds):** (1) a stale context-switcher cookie from another account redirect-looped
+  `/b` — `requireActiveOrg` now validates the cookie org against the user's memberships like
+  `resolveActiveContext` does; (2) when the worker marked the post `filled`, the booked
+  provider's RLS view of it (and its occurrences) vanished, emptying their booking's dates —
+  `opportunities_select` gains `provider_has_applied()` (definer, because a direct
+  applications↔opportunities policy cross-reference recurses), logged as a deviation from the
+  DATABASE_SCHEMA §10 matrix. Hosted walkthrough end-to-end with the worker live: apply with
+  warn-don't-block chips → applicant review → offer (terms `2026-06-draft-1`) → accept → contact
+  revealed both ways (phone + definer email) → complete 6h × $95 = $570 record → provider
+  counter-signed; bells incremented at every step. Tests: +13 (state machines, dedup, grant
+  re-open, visibility incl. filled-post regression, booking-insert RLS both ways, contact reveal,
+  slot trigger incl. the slot_count-2 stress case and overbooking stop, past-date no-reopen, and
+  `tests/spine.test.ts` — the permanent CI spine: post→alert→apply→offer→book→complete) — 100
+  total. Test fixture note: bookings carry RESTRICT FKs, so `cleanupBookings()` precedes the
+  auth.users cascade in cleanup. Terms body is DRAFT pending attorney review (bump
+  `TERMS_VERSION` on any wording change). **Founder actions open:** add
+  `SUPABASE_SERVICE_ROLE_KEY` to `.env` (dashboard → API) to turn on business document viewing;
+  Resend + Railway + 10DLC unchanged from Phase 6.
 - **2026-06-11 — Phase 6 shipped (matching worker & notifications).** pg-boss 10 worker
   (`npm run worker`, `railway.json` ready) sharing ONE boss instance per process via
   `src/lib/queue.ts` — session pooler, boss max 5 + service pool 5, under Supavisor's 15

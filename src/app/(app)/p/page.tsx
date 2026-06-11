@@ -1,7 +1,11 @@
 import Link from "next/link";
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, gt, inArray } from "drizzle-orm";
 import { dbAs } from "@/db/client";
 import {
+  applications,
+  bookingOccurrences,
+  bookings,
+  opportunityOccurrences,
   portfolioItems,
   providerAvailability,
   providerServices,
@@ -69,6 +73,36 @@ export default async function ProviderDashboard() {
       .from(portfolioItems)
       .where(eq(portfolioItems.providerProfileId, provider.id));
     const { chips } = await getCredentialSummary(tx, provider.id, "GA");
+    const [activeApplications] = await tx
+      .select({ value: count() })
+      .from(applications)
+      .where(
+        and(
+          eq(applications.providerProfileId, provider.id),
+          inArray(applications.status, ["submitted", "viewed", "shortlisted"]),
+        ),
+      );
+    const [offers] = await tx
+      .select({ value: count() })
+      .from(applications)
+      .where(
+        and(eq(applications.providerProfileId, provider.id), eq(applications.status, "offered")),
+      );
+    const [upcomingDates] = await tx
+      .select({ value: count() })
+      .from(bookingOccurrences)
+      .innerJoin(bookings, eq(bookings.id, bookingOccurrences.bookingId))
+      .innerJoin(
+        opportunityOccurrences,
+        eq(opportunityOccurrences.id, bookingOccurrences.occurrenceId),
+      )
+      .where(
+        and(
+          eq(bookings.providerProfileId, provider.id),
+          eq(bookingOccurrences.status, "confirmed"),
+          gt(opportunityOccurrences.startsAt, new Date()),
+        ),
+      );
     return {
       services: serviceCount.value,
       zones: zoneCount.value,
@@ -76,6 +110,9 @@ export default async function ProviderDashboard() {
       portfolio: portfolioCount.value,
       credentialWarnings: chips.filter((chip) => chip.isWarning).length,
       requiredCredentials: chips.filter((chip) => chip.level === "required").length,
+      activeApplications: activeApplications.value,
+      offers: offers.value,
+      upcomingDates: upcomingDates.value,
     };
   });
 
@@ -87,9 +124,29 @@ export default async function ProviderDashboard() {
       <h1 className="text-3xl font-semibold">Welcome, {provider.displayName}</h1>
       <p className="mt-2 text-ink-soft">
         {data.zones > 0
-          ? "You're set up for alerts — opportunities that match will appear here (Phase 6 turns on delivery)."
+          ? "You're set up for alerts — matching opportunities hit your bell, email, and texts the moment they post."
           : "Finish the steps below and you'll be alerted the moment matching work posts."}
       </p>
+
+      {data.offers > 0 ? (
+        <Link href="/p/applications" className="oc-card mt-6 block border-success/40 p-4 hover:border-success">
+          <p className="font-medium text-success">
+            🎉 You&apos;ve been selected — {data.offers} offer{data.offers > 1 ? "s" : ""} waiting
+          </p>
+          <p className="mt-1 text-sm text-ink-soft">Review the terms and confirm to lock in the booking.</p>
+        </Link>
+      ) : null}
+
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <Link href="/p/applications" className="oc-card p-4 hover:border-lilac">
+          <p className="text-2xl font-semibold">{data.activeApplications + data.offers}</p>
+          <p className="text-sm text-ink-soft">Active applications</p>
+        </Link>
+        <Link href="/p/bookings" className="oc-card p-4 hover:border-lilac">
+          <p className="text-2xl font-semibold">{data.upcomingDates}</p>
+          <p className="text-sm text-ink-soft">Upcoming booked dates</p>
+        </Link>
+      </div>
 
       <div className="mt-8 space-y-3">
         <ChecklistItem

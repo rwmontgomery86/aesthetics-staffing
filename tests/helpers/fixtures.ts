@@ -18,6 +18,26 @@ import {
  * collide, and rls.test.ts tears down via auth.users cascade.
  */
 
+/**
+ * Bookings (and their completion records) carry RESTRICT FKs by design, so
+ * the auth.users cascade can't sweep them — any test file that creates
+ * bookings must call this before the standard user/org cleanup.
+ */
+export async function cleanupBookings() {
+  await serviceDb.execute(sql`
+    delete from completion_records cr
+    using bookings b, provider_profiles pp, auth.users u
+    where cr.booking_id = b.id and b.provider_profile_id = pp.id
+      and pp.user_id = u.id and u.email like '%@test.local'
+  `);
+  await serviceDb.execute(sql`
+    delete from bookings b
+    using provider_profiles pp, auth.users u
+    where b.provider_profile_id = pp.id
+      and pp.user_id = u.id and u.email like '%@test.local'
+  `);
+}
+
 export async function createUser(label: string, opts: { admin?: boolean } = {}) {
   const email = `${label}-${crypto.randomUUID().slice(0, 8)}@test.local`;
   const result = await serviceDb.execute(sql`

@@ -2,18 +2,28 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DateTime } from "luxon";
 import { and, asc, eq, gt } from "drizzle-orm";
-import { dbAsAnon } from "@/db/client";
+import { dbAs, dbAsAnon } from "@/db/client";
 import {
+  applications,
   locations,
   opportunities,
   opportunityOccurrences,
   opportunityProviderTypes,
   opportunityServices,
+  organizationMembers,
   organizations,
+  providerProfiles,
   providerTypes,
   services,
 } from "@/db/schema";
+import { SnapshotChips } from "@/components/SnapshotChips";
+import { getAuthUser } from "@/lib/auth/session";
+import {
+  getOpportunityCredentialChips,
+  type CredentialSnapshotChip,
+} from "@/lib/credentials/requirements";
 import { formatPay, opportunityTypeLabel } from "@/lib/opportunity-types";
+import { ApplyForm } from "./ApplyForm";
 
 export const metadata = { title: "Opportunity" };
 
@@ -25,8 +35,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * expired posts 404 here structurally — not by an if-statement we could get
  * wrong. Visible to signed-out providers and search engines alike.
  */
-export default async function PublicOpportunityPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function PublicOpportunityPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string; notice?: string }>;
+}) {
+  const [{ id }, { error, notice }] = await Promise.all([params, searchParams]);
   if (!UUID.test(id)) notFound();
 
   const data = await dbAsAnon(async (tx) => {
@@ -44,12 +60,12 @@ export default async function PublicOpportunityPage({ params }: { params: Promis
       .from(locations)
       .where(eq(locations.id, opp.locationId));
     const oppServices = await tx
-      .select({ name: services.name })
+      .select({ id: services.id, name: services.name })
       .from(opportunityServices)
       .innerJoin(services, eq(services.id, opportunityServices.serviceId))
       .where(eq(opportunityServices.opportunityId, id));
     const oppProviderTypes = await tx
-      .select({ name: providerTypes.name })
+      .select({ id: providerTypes.id, name: providerTypes.name })
       .from(opportunityProviderTypes)
       .innerJoin(providerTypes, eq(providerTypes.id, opportunityProviderTypes.providerTypeId))
       .where(eq(opportunityProviderTypes.opportunityId, id));
@@ -68,6 +84,63 @@ export default async function PublicOpportunityPage({ params }: { params: Promis
   });
   if (!data) notFound();
   const { opp, org, location, oppServices, oppProviderTypes, upcoming } = data;
+
+  // The viewer's relationship to this post (RLS-scoped): a provider gets the
+  // apply box with their own credential chips; the posting org gets a manage
+  // link; everyone else gets the join CTA.
+  const user = await getAuthUser();
+  let viewer: {
+    isOrgMember: boolean;
+    hasProviderProfile: boolean;
+    myApplications: { status: string }[];
+    chips: CredentialSnapshotChip[];
+  } | null = null;
+  if (user) {
+    viewer = await dbAs(user, async (tx) => {
+      const [membership] = await tx
+        .select({ userId: organizationMembers.userId })
+        .from(organizationMembers)
+        .where(
+          and(
+            eq(organizationMembers.organizationId, opp.organizationId),
+            eq(organizationMembers.userId, user.id),
+          ),
+        );
+      const [provider] = await tx
+        .select({ id: providerProfiles.id })
+        .from(providerProfiles)
+        .where(eq(providerProfiles.userId, user.id));
+      if (!provider) {
+        return {
+          isOrgMember: Boolean(membership),
+          hasProviderProfile: false,
+          myApplications: [],
+          chips: [],
+        };
+      }
+      const myApplications = await tx
+        .select({ status: applications.status })
+        .from(applications)
+        .where(
+          and(eq(applications.opportunityId, id), eq(applications.providerProfileId, provider.id)),
+        );
+      const chips = await getOpportunityCredentialChips(
+        tx,
+        provider.id,
+        {
+          serviceIds: oppServices.map((s) => s.id),
+          providerTypeIds: oppProviderTypes.map((t) => t.id),
+        },
+        location?.state ?? "GA",
+      );
+      return {
+        isOrgMember: Boolean(membership),
+        hasProviderProfile: true,
+        myApplications,
+        chips,
+      };
+    });
+  }
 
   const pay = formatPay(opp);
   const fmt = (d: Date) => DateTime.fromJSDate(d, { zone: opp.timezone }).toFormat("EEE, MMM d · h:mm a");
@@ -201,20 +274,79 @@ export default async function PublicOpportunityPage({ params }: { params: Promis
         </dl>
       </section>
 
-      <div className="oc-card mt-6 p-6 text-center">
+      <div className="oc-card mt-6 p-6">
+        {error ? <p className="oc-error mb-4">{error}</p> : null}
+        {notice ? <p className="oc-notice mb-4">{notice}</p> : null}
         {deadlinePassed ? (
-          <p className="font-medium text-ink-soft">Applications for this opportunity have closed.</p>
-        ) : (
-          <>
+          <p className="text-center font-medium text-ink-soft">
+            Applications for this opportunity have closed.
+          </p>
+        ) : viewer?.isOrgMember ? (
+          <p className="text-center text-sm text-ink-soft">
+            This is your team&apos;s posting.{" "}
+            <Link href={`/b/opportunities/${opp.id}`} className="underline hover:text-lilac">
+              Manage it here
+            </Link>
+            .
+          </p>
+        ) : viewer && viewer.myApplications.length > 0 ? (
+          <div className="text-center">
+            <p className="font-medium">You&apos;ve applied to this opportunity.</p>
+            <Link href="/p/applications" className="oc-btn-secondary mt-4 inline-block">
+              Track it in My applications
+            </Link>
+          </div>
+        ) : viewer?.hasProviderProfile ? (
+          <div>
+            <h2 className="text-lg font-semibold">Apply</h2>
+            {viewer.chips.length > 0 ? (
+              <div className="mt-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
+                  How your credentials line up
+                </p>
+                <div className="mt-2">
+                  <SnapshotChips chips={viewer.chips} />
+                </div>
+                {viewer.chips.some((chip) => chip.isWarning) ? (
+                  <p className="oc-error mt-3">
+                    Some required credentials are missing or expired. You can still apply — the
+                    business will see these same labels.{" "}
+                    <Link href="/p/credentials" className="underline">
+                      Update credentials
+                    </Link>
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            <ApplyForm
+              opportunityId={opp.id}
+              dates={upcoming.map((occ) => ({
+                id: occ.id,
+                label: `${fmt(occ.startsAt)} – ${fmtTime(occ.endsAt)}`,
+              }))}
+            />
+          </div>
+        ) : user ? (
+          <div className="text-center">
             <p className="font-medium">Interested?</p>
             <p className="mt-1 text-sm text-ink-soft">
-              Create a provider account and draw a watch zone — you&apos;ll be alerted the moment
-              work like this posts. In-app applications open in an upcoming release.
+              Add the provider side to your account to apply.
+            </p>
+            <Link href="/onboarding" className="oc-btn mt-4 inline-block">
+              Set up your provider profile
+            </Link>
+          </div>
+        ) : (
+          <div className="text-center">
+            <p className="font-medium">Interested?</p>
+            <p className="mt-1 text-sm text-ink-soft">
+              Create a provider account to apply — and draw a watch zone so you&apos;re alerted the
+              moment work like this posts.
             </p>
             <Link href={`/signup?next=${encodeURIComponent(`/o/${opp.id}`)}`} className="oc-btn mt-4 inline-block">
               Join as a provider
             </Link>
-          </>
+          </div>
         )}
       </div>
     </article>
