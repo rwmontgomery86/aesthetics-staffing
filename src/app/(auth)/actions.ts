@@ -23,9 +23,13 @@ export async function signUpAction(formData: FormData) {
   const fullName = String(formData.get("fullName") ?? "").trim();
   const email = emailSchema.safeParse(formData.get("email"));
   const password = passwordSchema.safeParse(formData.get("password"));
+  // Carried through confirmation so flows like team invites land back where
+  // they started (e.g. /invite/<token>).
+  const rawNext = String(formData.get("next") ?? "");
+  const next = rawNext.startsWith("/") ? rawNext : "/me";
   if (!fullName) fail("/signup", "Please enter your name.");
-  if (!email.success) fail("/signup", "Please enter a valid email address.");
-  if (!password.success) fail("/signup", password.error.issues[0].message);
+  if (!email.success) fail("/signup", "Please enter a valid email address.", { next });
+  if (!password.success) fail("/signup", password.error.issues[0].message, { next });
 
   const supabase = await getSupabaseServer();
   const { data, error } = await supabase.auth.signUp({
@@ -33,13 +37,13 @@ export async function signUpAction(formData: FormData) {
     password: password.data,
     options: {
       data: { full_name: fullName },
-      emailRedirectTo: `${baseUrl()}/auth/confirm`,
+      emailRedirectTo: `${baseUrl()}/auth/confirm?next=${encodeURIComponent(next)}`,
     },
   });
-  if (error) fail("/signup", error.message);
+  if (error) fail("/signup", error.message, { next });
 
   // Email confirmation off (dev) → session exists → straight in.
-  if (data.session) redirect("/me");
+  if (data.session) redirect(next);
   redirect("/login?notice=" + encodeURIComponent("Check your email to confirm your account."));
 }
 

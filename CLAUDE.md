@@ -18,14 +18,16 @@ IMPLEMENTATION_PHASES, OPEN_QUESTIONS (with the append-only decisions log), BRAN
 
 ## Cursor
 
-**Phases 0–3 complete** (see IMPLEMENTATION_PHASES.md):
+**Phases 0–4 complete** (see IMPLEMENTATION_PHASES.md):
 schema+RLS, auth+multi-hat accounts, provider onboarding + credentials + private storage +
-watch-zone editor. All verified on the hosted Supabase project; CI green.
+watch-zone editor, business side (org profile + logo, locations with street-level geocoding,
+team invites with roles, member management). All verified on the hosted Supabase project.
 
-**Next: Phase 4 — business side** (locations with geocoding, team invites with roles,
-business profile). Then Phase 5 (opportunity posting), Phase 6 (matching worker + notifications
-— needs the Twilio 10DLC registration the founder was asked to start), Phase 7 (applications/
-bookings), 8 (messaging), 9 (admin), 10 (SEO), 11 (hardening/launch).
+**Next: Phase 5 — opportunity posting** (all MVP types, pay-visibility enforcement, RRULE
+recurring + occurrence materialization, reach estimate, public detail page). Then Phase 6
+(matching worker + notifications — needs the Twilio 10DLC registration the founder was asked
+to start; founder is waiting on Twilio business confirmation as of 2026-06-11), Phase 7
+(applications/bookings), 8 (messaging), 9 (admin), 10 (SEO), 11 (hardening/launch).
 
 Standing founder action items: Twilio 10DLC registration; attorney review per
 COMPLIANCE_AND_TRUST.md §8 (the 16 GA credential-requirement seed rows are DRAFT until then).
@@ -73,6 +75,10 @@ the Supabase database password (dashboard → reset), the `rls_client` password
 9. **Credentials warn, never block** (chips via `src/lib/credentials/requirements.ts`); admin
    review decisions are trigger-protected (`drizzle/manual/0004`); expiring/expired are DERIVED
    from `expires_at`, never stored.
+10. **No `.returning()` on self-qualifying inserts** — `INSERT…RETURNING` also runs the SELECT
+    policy, and STABLE helpers (e.g. `is_org_member`) see the pre-insert snapshot, so the very
+    insert that creates the visibility-granting row fails. Insert without returning, re-select
+    after (found the hard way 2026-06-11, invite acceptance).
 
 ## Working agreements (per the founder)
 

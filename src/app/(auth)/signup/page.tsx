@@ -7,9 +7,9 @@ export const metadata = { title: "Create account" };
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, next } = await searchParams;
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
       <h1 className="text-3xl font-semibold">Create your account</h1>
@@ -18,6 +18,7 @@ export default async function SignupPage({
       </p>
 
       <form action={signUpAction} className="oc-card mt-8 space-y-4 p-6">
+        <input type="hidden" name="next" value={next ?? ""} />
         <div>
           <label htmlFor="fullName" className="oc-label">
             Full name

@@ -4,6 +4,34 @@ Organized by what blocks coding vs. what can be decided later. Where a default i
 
 ## Decisions log (append-only)
 
+- **2026-06-11 — Phase 4 shipped (business side: org profile, locations, team).** Business
+  dashboard checklist; org profile (kind/description/website/phone/EMR-POS, logo to the public
+  `org-media` bucket — admin-only write policy keyed on the org-id path prefix,
+  `drizzle/supabase/0002_storage_org_media.sql`, hosted-only, verified owner-can/poster-can't via
+  the storage API); locations CRUD with **street-level geocoding at save** (NotifEyes geocoder
+  ported: Nominatim default with config-driven UA, Mapbox drop-in via `MAPBOX_TOKEN`, GA
+  bounding-box sanity check, ZIP-centroid fallback; verified live — Lenox Square pin landed at
+  33.8496/-84.3634) and timezone fixed to America/New_York at geocode time (GA-only launch);
+  team management (owner ⊃ admin ⊃ poster, last-owner guard, owner-role changes are owner-only —
+  the latter two are app-level guards, RLS treats admin+ as member-managers); token invites
+  (sha256 hash stored, plaintext link shown once to the inviter, 14-day expiry, acceptance bound
+  to the invited email by RLS; invite emails arrive with Phase 6 — until then it's copy-link).
+  Signup now carries a `?next=` through email confirmation so invite links survive account
+  creation. **Security fix found in review:** the `org_members_insert` invitee path didn't pin
+  the role to the invite's role — a poster invite was redeemable as owner; policy now requires
+  `i.role = role` (migration `0002_yummy_ares`, applied local + hosted, regression-tested).
+  **Two bugs found by live testing (again):** (1) the invite page sat inside the `(app)` route
+  group whose layout redirects signed-out users to `/login` *without* `next`, eating the invite
+  link — moved to a standalone `/invite/[token]` route; (2) org admins can legitimately *see*
+  every org invite, so the accept page offered them teammates' invites and accepting would have
+  consumed them — page and action now require the signed-in email to match. **New hard-won
+  rule (CLAUDE.md #10):** `INSERT…RETURNING` also runs SELECT policies against the pre-insert
+  snapshot, so self-qualifying inserts (membership rows) must not use `.returning()`. Deferred:
+  location photos UI (schema + bucket ready), member title editing, invite delivery by email
+  (Phase 6). Exit criteria all verified on hosted: owner invited an admin and a poster through
+  the real UI; poster proven post-capable but management-blocked at the RLS layer (new
+  `tests/org-team.test.ts`, 14 tests); both locations geocoded with timezone; second location
+  works.
 - **2026-06-10 — Phase 3 shipped (provider onboarding + watch zones).** Full provider section: profile (GA-ZIP-centroid home geocoding — no external geocoder needed at launch), services, credentials (requirements engine with required/recommended chips + derived expiry, private document upload, attestation), pay, availability, portfolio (consent attestation, owner-signed URLs), watch zones (all four kinds via Leaflet editor, materialize-at-save, edit re-render from `geometry_meta`), dashboard checklist. Storage: private `credentials`/`portfolios` buckets with owner-path policies (`drizzle/supabase/0001_storage.sql`, hosted-only); browser-direct uploads under the user's JWT; third-party access deferred to the logged signing path (Phases 7/9). Verified end-to-end in the live UI (signup → provider hat → zone on the hosted DB). **Two bugs found by live testing:** empty-array SQL expansion in zone inserts (fixed with array literals), and react-leaflet vs React strict mode double-mount (strict mode disabled — dev-only check, NotifEyes used raw Leaflet to avoid the same). **Ops note:** transient pooler 28P01 for `rls_client` traced to credential-cache churn from re-ALTERing the role password on every migrate; bootstrap now sets the password only at creation. Per-category notification preferences UI deferred to Phase 6 (zones carry per-zone channel toggles).
 
 - **2026-06-10 — Phase 1 approved and started.** Founder accepted all Section A proposed defaults: draft GA credential rules seeded now and validated before launch (A.1); free-text supervision context + post-time attestation, structured org credentials deferred to V2 (A.2 — `locations.supervision_context` + `opportunities.supervision_attested_at`); all provider types self-attest-capable with risk-tiered review (A.3); warn-and-flag contact masking (A.4); transactional-only SMS pending 10DLC registration (A.5); `dbAs()` RLS enforcement path confirmed (A.6); slot_count column exists, MVP UI fixed at 1 (A.7); Census ZCTA/places with centroid fallback (A.8).

@@ -37,13 +37,16 @@ async function compressImage(file: File): Promise<Blob> {
 export function FileUpload({
   bucket,
   userId,
+  pathPrefix,
   name,
   accept = "image/jpeg,image/png,image/webp",
   label = "Upload file",
   currentFileName,
 }: {
-  bucket: "credentials" | "portfolios" | "avatars";
+  bucket: "credentials" | "portfolios" | "avatars" | "org-media";
   userId: string;
+  /** First path segment; defaults to userId (owner-path RLS). org-media keys on the org id instead. */
+  pathPrefix?: string;
   /** Hidden input name the storage path is written to (read by the server action). */
   name: string;
   accept?: string;
@@ -66,7 +69,7 @@ export function FileUpload({
       if (body.size > MAX_BYTES) throw new Error("File is too large (8 MB max).");
 
       const ext = isImage ? "jpg" : (file.name.split(".").pop() ?? "bin").toLowerCase();
-      const objectPath = `${userId}/${crypto.randomUUID()}.${ext}`;
+      const objectPath = `${pathPrefix ?? userId}/${crypto.randomUUID()}.${ext}`;
       const { error } = await getSupabaseBrowser()
         .storage.from(bucket)
         .upload(objectPath, body, {

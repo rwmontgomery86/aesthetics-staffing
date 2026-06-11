@@ -29,9 +29,15 @@ export async function requireOrgMember(orgId?: string) {
 
 const ROLE_LADDER = { poster: 0, admin: 1, owner: 2 } as const;
 
-export async function requireOrgRole(orgId: string, min: keyof typeof ROLE_LADDER) {
+export type OrgRole = keyof typeof ROLE_LADDER;
+
+export function roleAtLeast(role: OrgRole, min: OrgRole): boolean {
+  return ROLE_LADDER[role] >= ROLE_LADDER[min];
+}
+
+export async function requireOrgRole(orgId: string, min: OrgRole) {
   const { contexts, org } = await requireOrgMember(orgId);
-  if (ROLE_LADDER[org.role] < ROLE_LADDER[min]) redirect("/b");
+  if (!roleAtLeast(org.role, min)) redirect("/b");
   return { contexts, org };
 }
 

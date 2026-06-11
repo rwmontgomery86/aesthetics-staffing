@@ -60,7 +60,10 @@ export default async function LoginPage({
         </Link>
         <span className="mx-2">·</span>
         New here?{" "}
-        <Link href="/signup" className="underline hover:text-lilac">
+        <Link
+          href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"}
+          className="underline hover:text-lilac"
+        >
           Create an account
         </Link>
       </p>

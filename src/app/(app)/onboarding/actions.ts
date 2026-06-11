@@ -5,6 +5,7 @@ import { getAuthUser } from "@/lib/auth/session";
 import { writeActiveContextCookie } from "@/lib/auth/context";
 import { dbAs } from "@/db/client";
 import { organizationMembers, organizations, providerProfiles } from "@/db/schema";
+import { ORG_KIND_VALUES } from "@/lib/org-kinds";
 import { makeSlug } from "@/lib/slug";
 
 function fail(message: string): never {
@@ -37,17 +38,19 @@ export async function createProviderAction(formData: FormData) {
   redirect("/p");
 }
 
-/** Minimal "business hat" — locations, team, and details are Phase 4. */
+/** Creates the org + owner membership; the /b checklist drives the rest. */
 export async function createOrganizationAction(formData: FormData) {
   const user = await getAuthUser();
   if (!user) redirect("/login");
   const name = String(formData.get("name") ?? "").trim();
   if (name.length < 2) fail("Please enter your business name.");
+  const rawKind = String(formData.get("kind") ?? "other");
+  const kind = (ORG_KIND_VALUES as string[]).includes(rawKind) ? rawKind : "other";
 
   const orgId = await dbAs(user, async (tx) => {
     const [org] = await tx
       .insert(organizations)
-      .values({ name, slug: makeSlug(name), createdByUserId: user.id })
+      .values({ name, slug: makeSlug(name), kind, createdByUserId: user.id })
       .returning({ id: organizations.id });
     await tx.insert(organizationMembers).values({
       organizationId: org.id,

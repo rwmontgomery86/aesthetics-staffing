@@ -166,6 +166,7 @@ export const organizationMembers = pgTable(
             select 1 from organization_invites i
             where i.organization_id = ${t.organizationId}
               and lower(i.email) = lower(coalesce((select auth.jwt() ->> 'email'), ''))
+              and i.role = ${t.role}
               and i.expires_at > now()
               and i.accepted_by_user_id is null
           )

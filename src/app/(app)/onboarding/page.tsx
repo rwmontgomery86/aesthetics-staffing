@@ -1,4 +1,5 @@
 import { requireContexts } from "@/lib/auth/guards";
+import { ORG_KINDS } from "@/lib/org-kinds";
 import { createOrganizationAction, createProviderAction } from "./actions";
 
 export const metadata = { title: "Get started" };
@@ -72,6 +73,18 @@ export default async function OnboardingPage({
                 placeholder="e.g. Peachtree Aesthetics"
                 className="oc-input"
               />
+            </div>
+            <div>
+              <label htmlFor="kind" className="oc-label">
+                Business type
+              </label>
+              <select id="kind" name="kind" defaultValue="med_spa" className="oc-input">
+                {ORG_KINDS.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
             </div>
             <button type="submit" className="oc-btn w-full">
               Create business
