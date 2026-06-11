@@ -4,6 +4,45 @@ Organized by what blocks coding vs. what can be decided later. Where a default i
 
 ## Decisions log (append-only)
 
+- **2026-06-11 — Phase 6 shipped (matching worker & notifications).** pg-boss 10 worker
+  (`npm run worker`, `railway.json` ready) sharing ONE boss instance per process via
+  `src/lib/queue.ts` — session pooler, boss max 5 + service pool 5, under Supavisor's 15
+  (NotifEyes connection math ported); queues auto-created on both producer and worker so
+  startup order never matters; enqueue failures log loudly but never block a post. Matching:
+  Stage-1 SQL prefilter (`src/lib/matching/engine.ts`) + pure-function Stage-2 scoring
+  (`score.ts`, thresholds in `src/config/matching.ts`) per MATCHING_LOGIC — pay 85% band,
+  hour↔day 8h convention flagged approximate, incomparable units → NEAR never silent-fail,
+  service ratio, schedule vs zone days/window (midnight-wrap aware) + advisory availability
+  template, with a next-occurrence fallback when the 30-day horizon is empty (a shift six
+  weeks out must not auto-fail). `hidden_from_search` deliberately does NOT block alerts (it
+  gates business search only). Fanout (`fanout.ts`): best-grade zone wins, exact-only zones
+  filtered BEFORE the ledger (so a later exact lands as a fresh first alert),
+  `opportunity_alerts` ON CONFLICT DO NOTHING with pay snapshot in `score` jsonb; re-alert
+  once max on close→exact or pay +10% (same-unit comparison). Dispatcher
+  (`src/lib/notifications/dispatch.ts`) takes the DB as a PARAMETER — it sits outside the
+  service-role ESLint fence by design, only fenced callers can hand it a connection. One
+  notifications row per event + per-channel delivery rows through deliver-email/deliver-sms
+  queues (retry 3, backoff); channel selection = zone toggles ∩ category prefs ∩ user opt-ins;
+  bounce/complaint suppresses future sends to that recipient; urgent + first date <24h forces
+  SMS past zone/category toggles but NEVER past user-level opt-in. Adapters: Resend + Twilio
+  REST with console stubs (stubs ARE staging until the founder provisions accounts). Crons:
+  generate-occurrences (daily, idempotent on the unique index), expire-opportunities (hourly,
+  posted→expired incl. all-dates-past; also expires stale submitted applications per B.11),
+  credential-expiry-scan (30d/7d/expired notices, deduped per credential+window),
+  booking-reminders + application-stale-nudge (wired live, activate with Phase 7 data).
+  Webhooks: Twilio inbound STOP/START/HELP → profile opt-out + `sms_consent_log` (TCPA) and
+  status callbacks; Resend delivered/bounced/complained → delivery rows; both verify
+  signatures when secrets are set, accept unsigned in stub mode. In-app bell polls
+  `/api/notifications` every 25s through dbAs (no LISTEN/NOTIFY, locked rule). **All exit
+  criteria verified live on hosted** with the worker running locally: urgent injector shift
+  posted via UI → exact-graded alert in seconds (≤60s), email + SMS stubs fired with the SMS
+  forced past a zone that had SMS off, duplicate fanout enqueue → 0 new alerts, simulated
+  Resend/Twilio webhooks flipped both deliveries to `delivered`, bell showed "1 unread", STOP
+  keyword opted the test user out with an audit row. Tests: +23 (15 scoring threshold table,
+  8 integration: dedup/grade-gating/urgent-SMS both ways/re-alert-once/cron idempotency) — 87
+  total. **Founder actions open:** provision Resend (free tier covers launch volume) +
+  Railway worker service (~$5/mo hobby) — Atlas prompts on request; Twilio stays stubbed until
+  10DLC clears.
 - **2026-06-11 — Phase 5 shipped (opportunity posting).** Posting flow for all 7 MVP types
   (training event + room rental render as "coming soon" cards); type metadata in
   `src/lib/opportunity-types.ts` drives the picker, conditional form sections, and validation.

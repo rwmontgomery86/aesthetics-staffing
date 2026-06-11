@@ -1,6 +1,7 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import { serviceDb } from "@/db/service";
+import { MATCHING } from "@/config/matching";
 
 /**
  * Reach estimate: "~N providers are watching this area." A COUNT(DISTINCT)
@@ -66,7 +67,7 @@ export async function estimateReach(input: ReachInput): Promise<number> {
         wz.min_pay_cents is null
         or ${comparablePay}::int is null
         or wz.min_pay_unit::text <> ${input.payUnit ?? ""}
-        or ${comparablePay}::int >= 0.85 * wz.min_pay_cents
+        or ${comparablePay}::int >= ${MATCHING.payTolerance}::float8 * wz.min_pay_cents
       )
       and exists (
         select 1 from provider_profile_types ppt

@@ -18,20 +18,23 @@ IMPLEMENTATION_PHASES, OPEN_QUESTIONS (with the append-only decisions log), BRAN
 
 ## Cursor
 
-**Phases 0–5 complete** (see IMPLEMENTATION_PHASES.md):
+**Phases 0–6 complete** (see IMPLEMENTATION_PHASES.md):
 schema+RLS, auth+multi-hat accounts, provider onboarding + credentials + private storage +
 watch-zone editor, business side (org profile, locations with geocoding, team invites),
-opportunity posting (all MVP types, layered pay enforcement, weekly RRULE + DST-safe 8-week
-occurrence materialization via luxon, occurrence cancel/reschedule, assertTransition state
-machines, service-role reach estimate, public `/o/[id]` page rendered via dbAsAnon). All
-verified on the hosted Supabase project.
+opportunity posting (all MVP types, layered pay enforcement, DST-safe occurrence
+materialization, reach estimate, public `/o/[id]`), matching worker & notifications (pg-boss
+worker `npm run worker` + railway.json, Stage-1 SQL prefilter + Stage-2 pure scoring,
+opportunity_alerts dedup + once-max re-alert, dispatcher → deliveries → Resend/Twilio
+console-stub adapters, urgent<24h SMS forcing, STOP/HELP + delivery webhooks, in-app bell
+polling 25s, crons). All exit criteria verified live on hosted with the worker running.
 
-**Next: Phase 6 — matching worker & notifications** (pg-boss worker, fanout + scoring per
-MATCHING_LOGIC.md, opportunity_alerts dedup, notification pipeline with Resend/Twilio console
-stubs, in-app bell, crons incl. generate-occurrences/expire-opportunities). SMS needs the
-Twilio 10DLC registration — founder is waiting on Twilio business confirmation as of
-2026-06-11; email + in-app can ship first. Then Phase 7 (applications/bookings), 8 (messaging),
-9 (admin), 10 (SEO), 11 (hardening/launch).
+**Next: Phase 7 — applications & bookings** (apply flow with credential snapshot +
+profile_access_grants, applicant review with credential/portfolio chips, selection, dual
+confirmation, bookings/booking_occurrences, cancellation/no-show/completion, e2e spine test
+post→alert→apply→book→complete). Standing: worker needs a Railway service (~$5/mo, founder
+confirms); Resend account for real email (free tier); Twilio adapter stays stubbed until the
+10DLC registration clears (founder waiting on business confirmation as of 2026-06-11). Then
+Phase 8 (messaging), 9 (admin), 10 (SEO), 11 (hardening/launch).
 
 Standing founder action items: Twilio 10DLC registration; attorney review per
 COMPLIANCE_AND_TRUST.md §8 (the 16 GA credential-requirement seed rows are DRAFT until then).

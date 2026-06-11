@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { brand } from "@/config/brand";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import type { UserContexts } from "@/lib/auth/session";
 import { type ActiveContext, contextHomePath, serializeContext } from "@/lib/auth/context";
 import { signOutAction } from "@/app/(auth)/actions";
@@ -50,6 +51,7 @@ export function AppShell({
           </Link>
 
           <div className="flex items-center gap-3">
+            <NotificationsBell />
             {active && options.length > 1 ? (
               <details className="group relative">
                 <summary className="oc-btn-secondary cursor-pointer list-none select-none">

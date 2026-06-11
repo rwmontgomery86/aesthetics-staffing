@@ -16,6 +16,7 @@ import {
 } from "@/db/schema";
 import { getAuthUser } from "@/lib/auth/session";
 import { requireOrgRole } from "@/lib/auth/guards";
+import { enqueueFanoutPosted, enqueueFanoutUpdated, tryEnqueue } from "@/lib/queue";
 import { opportunityTypeMeta } from "@/lib/opportunity-types";
 import {
   MATERIALIZE_WEEKS,
@@ -360,9 +361,13 @@ export async function createOpportunityAction(formData: FormData) {
     return opp.id;
   });
 
+  if (intent === "post") {
+    await tryEnqueue(() => enqueueFanoutPosted(oppId), "fanout-posted");
+  }
+
   redirect(
     `/b/opportunities/${oppId}?notice=` +
-      encodeURIComponent(intent === "post" ? "Posted — matching providers will be alerted once delivery launches (Phase 6)." : "Draft saved."),
+      encodeURIComponent(intent === "post" ? "Posted — matching providers are being alerted." : "Draft saved."),
   );
 }
 
@@ -381,6 +386,7 @@ export async function updateOpportunityAction(formData: FormData) {
   if (providerTypeIds.length === 0) fail(backTo, "Pick at least one provider type.");
   if (serviceIds.length === 0) fail(backTo, "Pick at least one service.");
 
+  let wasPosted = false;
   await dbAs({ id: user.id, email: user.email }, async (tx) => {
     const [existing] = await tx
       .select()
@@ -390,6 +396,7 @@ export async function updateOpportunityAction(formData: FormData) {
     if (existing.status !== "draft" && existing.status !== "posted") {
       fail(`/b/opportunities/${oppId}`, "Only drafts and posted opportunities can be edited.");
     }
+    wasPosted = existing.status === "posted";
     // The type is the form's skeleton — changing it is a new post.
     const meta = opportunityTypeMeta(existing.type)!;
     if (data.type !== existing.type) fail(backTo, "The type can't change — create a new opportunity instead.");
@@ -468,6 +475,12 @@ export async function updateOpportunityAction(formData: FormData) {
     }
   });
 
+  // Material-edit policy lives in the worker: it re-alerts only on a grade
+  // improvement or a ≥10% pay rise, so enqueueing every posted-edit is safe.
+  if (wasPosted) {
+    await tryEnqueue(() => enqueueFanoutUpdated(oppId), "fanout-updated");
+  }
+
   redirect(`/b/opportunities/${oppId}?notice=` + encodeURIComponent("Changes saved."));
 }
 
@@ -508,9 +521,10 @@ export async function postOpportunityAction(formData: FormData) {
       fail(`/b/opportunities/${opportunityId}`, `Can't post from "${opp.status}".`);
     }
   });
+  await tryEnqueue(() => enqueueFanoutPosted(opportunityId), "fanout-posted");
   redirect(
     `/b/opportunities/${opportunityId}?notice=` +
-      encodeURIComponent("Posted — matching providers will be alerted once delivery launches (Phase 6)."),
+      encodeURIComponent("Posted — matching providers are being alerted."),
   );
 }
 
