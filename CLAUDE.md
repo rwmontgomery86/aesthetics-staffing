@@ -35,11 +35,11 @@ spine test post→alert→apply→offer→book→complete). All verified live on
 
 **Next: Phase 8 — messaging** (context-bound threads, participants, unread counts, system
 messages on milestones, pre-reveal contact regex warn+flag, patient-info composer warning,
-admin thread access audited). Standing: `SUPABASE_SERVICE_ROLE_KEY` needed in `.env` before
-businesses can open credential docs/portfolios (`/api/files/sign` 503s until then); worker
-needs a Railway service (~$5/mo, founder confirms); Resend account for real email (free
-tier); Twilio adapter stays stubbed until the 10DLC registration clears (founder waiting on
-business confirmation as of 2026-06-11). Then Phase 9 (admin), 10 (SEO), 11 (hardening/launch).
+admin thread access audited). Standing: worker needs a Railway service (~$5/mo, founder
+confirms); Resend account for real email (free tier); Twilio adapter stays stubbed until the
+10DLC registration clears (founder waiting on business confirmation as of 2026-06-11).
+`SUPABASE_SERVICE_ROLE_KEY` added to `.env` 2026-06-11 (document signing live; key verified
+against hosted storage). Then Phase 9 (admin), 10 (SEO), 11 (hardening/launch).
 
 Standing founder action items: Twilio 10DLC registration; attorney review per
 COMPLIANCE_AND_TRUST.md §8 (the 16 GA credential-requirement seed rows are DRAFT until then).
