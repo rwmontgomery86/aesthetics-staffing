@@ -18,16 +18,20 @@ IMPLEMENTATION_PHASES, OPEN_QUESTIONS (with the append-only decisions log), BRAN
 
 ## Cursor
 
-**Phases 0–4 complete** (see IMPLEMENTATION_PHASES.md):
+**Phases 0–5 complete** (see IMPLEMENTATION_PHASES.md):
 schema+RLS, auth+multi-hat accounts, provider onboarding + credentials + private storage +
-watch-zone editor, business side (org profile + logo, locations with street-level geocoding,
-team invites with roles, member management). All verified on the hosted Supabase project.
+watch-zone editor, business side (org profile, locations with geocoding, team invites),
+opportunity posting (all MVP types, layered pay enforcement, weekly RRULE + DST-safe 8-week
+occurrence materialization via luxon, occurrence cancel/reschedule, assertTransition state
+machines, service-role reach estimate, public `/o/[id]` page rendered via dbAsAnon). All
+verified on the hosted Supabase project.
 
-**Next: Phase 5 — opportunity posting** (all MVP types, pay-visibility enforcement, RRULE
-recurring + occurrence materialization, reach estimate, public detail page). Then Phase 6
-(matching worker + notifications — needs the Twilio 10DLC registration the founder was asked
-to start; founder is waiting on Twilio business confirmation as of 2026-06-11), Phase 7
-(applications/bookings), 8 (messaging), 9 (admin), 10 (SEO), 11 (hardening/launch).
+**Next: Phase 6 — matching worker & notifications** (pg-boss worker, fanout + scoring per
+MATCHING_LOGIC.md, opportunity_alerts dedup, notification pipeline with Resend/Twilio console
+stubs, in-app bell, crons incl. generate-occurrences/expire-opportunities). SMS needs the
+Twilio 10DLC registration — founder is waiting on Twilio business confirmation as of
+2026-06-11; email + in-app can ship first. Then Phase 7 (applications/bookings), 8 (messaging),
+9 (admin), 10 (SEO), 11 (hardening/launch).
 
 Standing founder action items: Twilio 10DLC registration; attorney review per
 COMPLIANCE_AND_TRUST.md §8 (the 16 GA credential-requirement seed rows are DRAFT until then).

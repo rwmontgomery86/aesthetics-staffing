@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { and, count, eq, gt, isNull } from "drizzle-orm";
 import { dbAs } from "@/db/client";
-import { locations, organizationInvites, organizationMembers, organizations } from "@/db/schema";
+import {
+  locations,
+  opportunities,
+  organizationInvites,
+  organizationMembers,
+  organizations,
+} from "@/db/schema";
 import { requireActiveOrg } from "@/lib/org";
 
 export const metadata = { title: "Business dashboard" };
@@ -65,11 +71,16 @@ export default async function BusinessDashboard({
           gt(organizationInvites.expiresAt, new Date()),
         ),
       );
+    const [opportunityCount] = await tx
+      .select({ value: count() })
+      .from(opportunities)
+      .where(eq(opportunities.organizationId, org.id));
     return {
       orgRow,
       locations: locationCount.value,
       members: memberCount.value,
       pendingInvites: pendingInvites.value,
+      opportunities: opportunityCount.value,
     };
   });
 
@@ -118,21 +129,16 @@ export default async function BusinessDashboard({
               : "Invite teammates who can post opportunities or manage the account."
           }
         />
-        <div className="oc-card flex items-center gap-4 p-4 opacity-70">
-          <span
-            aria-hidden
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink/5 text-sm font-semibold text-ink-soft"
-          >
-            ·
-          </span>
-          <span>
-            <span className="block font-medium">Post an opportunity</span>
-            <span className="block text-sm text-ink-soft">
-              Shifts, roles, and events — matching providers get alerted instantly.{" "}
-              <span className="font-medium uppercase tracking-wide text-lilac">Coming in Phase 5</span>
-            </span>
-          </span>
-        </div>
+        <ChecklistItem
+          done={data.opportunities > 0}
+          href="/b/opportunities"
+          title="Post an opportunity"
+          detail={
+            data.opportunities > 0
+              ? `${data.opportunities} opportunit${data.opportunities > 1 ? "ies" : "y"} — providers get alerted when delivery launches (Phase 6).`
+              : "Shifts, roles, and events — matching providers get alerted instantly."
+          }
+        />
       </div>
     </div>
   );

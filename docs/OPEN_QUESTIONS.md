@@ -4,6 +4,35 @@ Organized by what blocks coding vs. what can be decided later. Where a default i
 
 ## Decisions log (append-only)
 
+- **2026-06-11 — Phase 5 shipped (opportunity posting).** Posting flow for all 7 MVP types
+  (training event + room rental render as "coming soon" cards); type metadata in
+  `src/lib/opportunity-types.ts` drives the picker, conditional form sections, and validation.
+  Pay enforcement is layered: form `required`, zod mirror of the CHECK semantics with friendly
+  copy, and the existing `opportunities_pay_visibility_check` (structurally tested: no-pay /
+  bad-range / negotiable-with-max all rejected even via the service role). FT/PT/evergreen pay
+  is optional-but-encouraged (B.9 default adopted). Recurrence: weekly builder writes standard
+  RFC 5545 `FREQ=WEEKLY;BYDAY=…[;UNTIL=…]` strings; `src/lib/recurrence.ts` (luxon, new dep)
+  expands them in the LOCATION's IANA timezone on an 8-week window — DST resolved exactly once
+  at generation, unit-tested across the 2026 spring AND fall boundaries incl. a shift spanning
+  the 2 AM jump; materialization inserts are `on conflict do nothing` against the
+  (opportunity, starts_at) unique index so the Phase 6 cron extension is idempotent. Status
+  lifecycle via `assertTransition` tables (`src/lib/state/opportunity.ts`); occurrence-level
+  cancel + reschedule (`rescheduled_from_id` lineage) live on the manage page; schedule edits
+  regenerate only FUTURE OPEN occurrences. Reach estimate (`src/lib/matching/reach.ts`,
+  service-role by design inside the ESLint fence, returns only an aggregate count) implements
+  the MATCHING_LOGIC Stage-1 prefilter minus schedule filters (documented as optimistic);
+  verified live: ~1 for a matching injector zone, ~0 for the same zone once the post wanted an
+  aesthetician. Supervision attestation checkbox is REQUIRED when any selected service's
+  category is risk-tier 3 (injectables/laser/IV) — enforced server-side, verified live.
+  Public detail page at `/o/[id]` renders through `dbAsAnon`, so posted-only visibility is RLS,
+  not an if-statement: drafts 404'd anonymously in the live check. **Two form bugs found by
+  live testing:** error redirects appended `?error=` to a URL already carrying `?type=`
+  (mangled both params — fail() now picks the separator), and fields absent from a type's form
+  variant arrive as `null`, bypassing zod string defaults (normalized to "" in parseForm).
+  Hosted walkthrough: one-time injector shift posted (pay $95/hr, attestation), recurring
+  Mon/Wed esthetician shift → exactly 16 occurrences over 8 weeks, one canceled + one
+  rescheduled with lineage intact, public page checked via cookie-less curl. Deferred to later
+  phases: fanout on post (6), apply flow (7), occurrence display on SEO surfaces (10).
 - **2026-06-11 — Phase 4 shipped (business side: org profile, locations, team).** Business
   dashboard checklist; org profile (kind/description/website/phone/EMR-POS, logo to the public
   `org-media` bucket — admin-only write policy keyed on the org-id path prefix,
