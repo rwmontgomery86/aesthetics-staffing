@@ -1,7 +1,6 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { dbAs } from "@/db/client";
 import { organizationInvites, organizationMembers, profiles } from "@/db/schema";
-import { env } from "@/env";
 import { requireActiveOrg } from "@/lib/org";
 import { roleAtLeast } from "@/lib/auth/guards";
 import { CopyInviteLink } from "./CopyInviteLink";
@@ -79,7 +78,9 @@ export default async function TeamPage({
             Invite created — send this link to your teammate. It works once, only for the email
             you invited, and expires in 14 days.
           </p>
-          <CopyInviteLink url={`${env.APP_BASE_URL}/invite/${invite}`} />
+          <CopyInviteLink
+            url={`${process.env.APP_BASE_URL ?? "http://localhost:4000"}/invite/${invite}`}
+          />
           <p className="text-xs text-ink-soft">
             Copy it now — for security we don&apos;t store the link, so it won&apos;t be shown
             again. (Automatic invite emails arrive in a later phase.)

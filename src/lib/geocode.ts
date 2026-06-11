@@ -12,8 +12,12 @@
  */
 
 import "server-only";
-import { env } from "@/env";
 import { brand } from "@/config/brand";
+
+// process.env read lazily (NOT via @/env): importing the validated env from a
+// route module forces full validation at build time, and CI builds without
+// database URLs (same reason src/db/client.ts reads process.env directly).
+const mapboxToken = () => process.env.MAPBOX_TOKEN;
 
 export interface GeocodeInput {
   addressLine: string | null;
@@ -33,7 +37,8 @@ export interface Geocoder {
 }
 
 // Brand stays config-driven, even in a user agent (BRAND_AND_COPY_NOTES).
-const USER_AGENT = `${brand.name}/0.1 ${env.SUPPORT_EMAIL}`;
+const userAgent = () =>
+  `${brand.name}/0.1 ${process.env.SUPPORT_EMAIL ?? "support@example.test"}`;
 
 /**
  * Georgia bounding box (generous). Launch is GA-only at the validation level,
@@ -89,7 +94,7 @@ export const nominatimGeocoder: Geocoder = {
 
     try {
       const res = await fetch(url, {
-        headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+        headers: { "User-Agent": userAgent(), Accept: "application/json" },
         // Don't blow up the save if Nominatim is slow — caller falls back.
         signal: AbortSignal.timeout(5000),
       });
@@ -117,7 +122,7 @@ export const nominatimGeocoder: Geocoder = {
  */
 export const mapboxGeocoder: Geocoder = {
   async geocode(input: GeocodeInput): Promise<GeocodeResult | null> {
-    const token = env.MAPBOX_TOKEN;
+    const token = mapboxToken();
     if (!token) return null;
 
     const q = buildQuery(input);
@@ -155,5 +160,8 @@ export const mapboxGeocoder: Geocoder = {
   },
 };
 
-// Prefer Mapbox when a token is present; otherwise the no-token Nominatim path.
-export const geocoder: Geocoder = env.MAPBOX_TOKEN ? mapboxGeocoder : nominatimGeocoder;
+// Prefer Mapbox when a token is present; otherwise the no-token Nominatim
+// path. Resolved per call so the choice doesn't freeze at import time.
+export const geocoder: Geocoder = {
+  geocode: (input) => (mapboxToken() ? mapboxGeocoder : nominatimGeocoder).geocode(input),
+};
