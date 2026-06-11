@@ -4,10 +4,16 @@ import {
   contextHomePath,
   readActiveContextCookie,
   resolveActiveContext,
-  writeActiveContextCookie,
 } from "@/lib/auth/context";
 
-/** Post-login traffic cop: route to the active hat's home, or onboarding. */
+/**
+ * Post-login traffic cop: route to the active hat's home, or onboarding.
+ *
+ * Deliberately does NOT persist the resolved context — pages can't modify
+ * cookies in Next (only Server Actions / Route Handlers can), and it isn't
+ * needed: resolveActiveContext re-derives the hat on every request, and the
+ * cookie is written by the switcher/onboarding/invite ACTIONS.
+ */
 export default async function MePage() {
   const contexts = await getUserContexts();
   if (!contexts) redirect("/login");
@@ -15,6 +21,5 @@ export default async function MePage() {
   const active = resolveActiveContext(contexts, await readActiveContextCookie());
   if (!active) redirect("/onboarding");
 
-  await writeActiveContextCookie(active);
   redirect(contextHomePath(active));
 }
