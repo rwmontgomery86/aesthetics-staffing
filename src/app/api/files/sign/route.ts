@@ -7,6 +7,7 @@ import {
   portfolioItems,
   profileAccessGrants,
   providerCredentials,
+  providerProfiles,
 } from "@/db/schema";
 import { getAuthUser } from "@/lib/auth/session";
 
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
     // RLS does the authorization: if the row comes back, the caller may see it.
     let providerProfileId: string;
     let storagePath: string;
+    let ownProfile = false;
     if (kind === "credential") {
       const [doc] = await tx
         .select({
@@ -82,10 +84,18 @@ export async function POST(request: Request) {
         ),
       )
       .limit(1);
+    const [own] = await tx
+      .select({ id: providerProfiles.id })
+      .from(providerProfiles)
+      .where(and(eq(providerProfiles.id, providerProfileId), eq(providerProfiles.userId, user.id)));
+    ownProfile = Boolean(own);
 
+    // No grant and not the owner, yet RLS let the row through → the caller
+    // is a platform admin; the log records that distinctly (USER_FLOWS §11).
+    const accessKind = !ownProfile && !grant ? "admin_view" : "signed_url_issued";
     await tx.execute(sql`
       select public.record_document_access(
-        ${providerProfileId}::uuid, ${kind}, ${id}::uuid, 'signed_url_issued',
+        ${providerProfileId}::uuid, ${kind}, ${id}::uuid, ${accessKind},
         ${grant?.organizationId ?? null}::uuid
       )
     `);

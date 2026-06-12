@@ -1,0 +1,1 @@
+ALTER POLICY "notifications_select_own" ON "notifications" TO authenticated USING ("notifications"."user_id" = (select auth.uid()) or (select public.is_platform_admin()));

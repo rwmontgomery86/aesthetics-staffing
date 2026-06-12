@@ -22,6 +22,9 @@ export interface UserContexts {
   user: AuthUser;
   fullName: string;
   isAdmin: boolean;
+  /** Set when a platform admin suspended this account — the app layout
+   *  bounces suspended users to /suspended. */
+  suspendedAt: Date | null;
   provider: { id: string; displayName: string } | null;
   orgs: OrgContext[];
 }
@@ -62,6 +65,7 @@ export const getUserContexts = cache(async (): Promise<UserContexts | null> => {
       user,
       fullName: profile?.fullName ?? "",
       isAdmin: profile?.isPlatformAdmin ?? false,
+      suspendedAt: profile?.suspendedAt ?? null,
       provider: provider ?? null,
       orgs,
     };

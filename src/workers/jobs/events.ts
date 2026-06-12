@@ -448,6 +448,64 @@ export async function notifyEventJob(event: NotifyEvent): Promise<void> {
       });
       return;
     }
+
+    case "credential_reviewed": {
+      const [row] = await serviceDb.execute<{
+        id: string;
+        status: string;
+        rejection_reason: string | null;
+        type_name: string;
+        user_id: string;
+      }>(sql`
+        select pc.id, pc.status, pc.rejection_reason, ct.name as type_name, pp.user_id
+        from provider_credentials pc
+        join credential_types ct on ct.id = pc.credential_type_id
+        join provider_profiles pp on pp.id = pc.provider_profile_id
+        where pc.id = ${event.credentialId}
+      `).then((r) => r.rows);
+      if (!row) return;
+      const approved = row.status === "admin_reviewed";
+      // The eventKey includes reviewed status so a re-review (after the
+      // provider re-submits) notifies again, but worker retries don't.
+      await sendOnce(`credential_reviewed:${row.id}:${row.status}`, {
+        userId: row.user_id,
+        category: "credentials",
+        kind: "credential_reviewed",
+        title: approved
+          ? `Your ${row.type_name} is verified ✓`
+          : `Your ${row.type_name} needs another look`,
+        body: approved
+          ? "Our team reviewed your document — businesses now see it as platform-reviewed on every application."
+          : `Reason: ${row.rejection_reason ?? "see your credentials page"}. Update the details or upload a clearer document and it goes back in the review queue.`,
+        actionUrl: `${appUrl()}/p/credentials`,
+        requested: { email: true, sms: false },
+      });
+      return;
+    }
+
+    case "post_removed": {
+      const [opp] = await serviceDb
+        .select({
+          id: opportunities.id,
+          title: opportunities.title,
+          posterUserId: opportunities.postedByUserId,
+        })
+        .from(opportunities)
+        .where(eq(opportunities.id, event.opportunityId));
+      if (!opp) return;
+      await sendOnce(`post_removed:${opp.id}`, {
+        userId: opp.posterUserId,
+        category: "admin",
+        kind: "post_removed",
+        title: `Your post "${opp.title}" was removed`,
+        body:
+          (event.reason ? `Reason: ${event.reason}. ` : "") +
+          "It no longer appears in search or alerts. Reply to any of our emails if you have questions.",
+        actionUrl: `${appUrl()}/b/opportunities`,
+        requested: { email: true, sms: false },
+      });
+      return;
+    }
   }
 }
 

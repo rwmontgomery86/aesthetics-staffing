@@ -4,6 +4,53 @@ Organized by what blocks coding vs. what can be decided later. Where a default i
 
 ## Decisions log (append-only)
 
+- **2026-06-12 — Phase 9 shipped (admin dashboard).** `/admin` gets a tabbed layout
+  (requireAdmin in layout + every page; RLS admin arms are the boundary) with: **dashboard**
+  (live counts: review queue, expiring/expired, flagged messages, disputes, no-shows,
+  suspended); **credential review** (USER_FLOWS §11 — queue sorted by risk tier desc then
+  submission age, tier = max service_categories.risk_tier over the credential type's active
+  requirement rows via direct-category or service→category paths, provider-type-only rows
+  default 1; expiring ≤30d / expired / all views; detail shows submitted metadata + provider
+  email + documents through the EXISTING `/api/files/sign` path — which now logs
+  `access_kind='admin_view'` when the caller is neither owner nor grant-holder — and
+  approve/reject forms; reject requires a reason; decision sets reviewer fields under the
+  0004 trigger's admin arm); **users** (search, hats, suspend-with-reason/reinstate —
+  suspension is enforced app-level: `getUserContexts` returns `suspended_at` and the (app)
+  layout redirects to the new `/suspended` page (outside the layout, sign-out only); RLS is
+  deliberately untouched, bookings are not auto-canceled); **businesses** (verified-badge
+  toggle on `organizations.verified_at`, admin-only notes upsert into
+  `organization_admin_notes`); **posts** (status-filtered list; remove = archived + audit +
+  `post_removed` notification to the poster); **bookings** (read-only explorer — by design,
+  interventions stay with the parties); **deliveries** (notification_deliveries ⋈
+  notifications with status/channel filters — needed an admin arm on
+  `notifications_select_own`, drizzle migration 0005, logged as a §10 matrix deviation);
+  **reports** (flagged messages → audited thread view, disputed completions, no-show
+  reports); **audit log** (filterable, newest first). New definer `admin_user_email(uuid)`
+  in bootstrap (admin-gated read of auth.users email; null otherwise). New NotifyEvents
+  `credential_reviewed` (eventKey includes the decided status so a re-review after
+  re-submission notifies again; body carries the rejection reason) and `post_removed`.
+  **Every admin mutation writes record_audit** with acting_as 'admin' inside the same
+  transaction. Tests +8 (admin-only audit/notes/emails, review-trigger + suspend RLS
+  both directions, notifications admin arm, review round-trip incl. re-review, post-removal
+  incl. stranger-blocked, admin_view access-log transparency row) — 119 total. **Live
+  walkthrough caught 3 real bugs** (tradition holds): raw `tx.execute` returns timestamptz
+  as pg-wire strings ("2026-06-10 13:51:16-04") — `ts()` helper now tries fromISO then
+  fromSQL; drizzle `date` columns render off-by-one via `new Date()` UTC parse — fromISO;
+  and `(${"$1"} = 'all' or enum_col = ${"$1"})` makes Postgres coerce 'all' into the enum →
+  compare `enum_col::text` instead (deliveries/bookings/posts filters all crashed on 'all').
+  **Walkthrough method:** flipping `is_platform_admin` on hosted was declined by the session
+  permission layer (twice) — the dashboard was instead walked live against the LOCAL
+  database (temporary `.env.local` pointing the dev server's two DB URLs at Postgres.app;
+  hosted Supabase Auth + Storage stayed live, auth ids mirrored into local auth.users, admin
+  flag set locally like every test fixture does). Hosted DB confirmed zero admin flags after
+  cleanup. Verified live: dashboard counts, queue/expiring views, signed doc view (200 PDF +
+  admin_view log row), approve→notice, suspend→/suspended gate→reinstate, verify badge,
+  notes persist, post removal, deliveries explorer + filters, reports → flagged thread with
+  marker, audit log showing all 7 action kinds, non-admin bounced from /admin.
+  `scripts/walkthrough-phase9.ts` kept (re-runnable, `--cleanup`). **Founder action:** to
+  use the dashboard on the real site, his own account needs the platform-admin flag — one
+  SQL statement in the Supabase dashboard (provided in the phase summary).
+
 - **2026-06-12 — Phase 8 shipped (messaging).** Threads/participants/messages existed in
   schema since Phase 1; this phase built everything on top. **Thread creation:** applying
   creates the context-bound thread (USER_FLOWS §7.4) under the provider's own RLS; the

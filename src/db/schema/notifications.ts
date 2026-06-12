@@ -42,10 +42,12 @@ export const notifications = pgTable(
     index("notifications_user_created_idx").on(t.userId, t.createdAt),
     // The ~25s unread-count polling query.
     index("notifications_unread_idx").on(t.userId).where(sql`read_at is null`),
+    // Admin arm: the delivery explorer joins deliveries to their parent
+    // notification (kind/title) — deviation from the §10 matrix, logged.
     pgPolicy("notifications_select_own", {
       for: "select",
       to: authenticatedRole,
-      using: sql`${t.userId} = ${authUid}`,
+      using: sql`${t.userId} = ${authUid} or ${isAdmin}`,
     }),
     pgPolicy("notifications_update_own", {
       for: "update",

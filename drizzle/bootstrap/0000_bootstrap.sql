@@ -205,6 +205,16 @@ language sql stable security definer set search_path = public, auth as $f$
     and (pp.user_id = auth.uid() or public.is_org_member(b.organization_id))
 $f$;
 
+-- Platform admins need user emails for the admin dashboard (users list,
+-- credential outreach); email lives in auth.users which clients can't read.
+-- Hard-gated on is_platform_admin() — returns null for everyone else.
+create or replace function public.admin_user_email(target uuid) returns text
+language sql stable security definer set search_path = public, auth as $f$
+  select case when public.is_platform_admin()
+    then (select u.email::text from auth.users u where u.id = target)
+    else null end
+$f$;
+
 -- ── Append-only log writers ─────────────────────────────────────────────────
 -- Direct DML on audit_logs / document_access_logs is revoked from clients
 -- (drizzle/manual grants); these definer functions are the only write path.
@@ -256,6 +266,10 @@ to anon, authenticated, service_role;
 
 -- Reads auth.users — signed-in booking parties only, never anon.
 grant execute on function public.booking_counterparty_email(uuid)
+to authenticated, service_role;
+
+-- Reads auth.users — internally gated on is_platform_admin().
+grant execute on function public.admin_user_email(uuid)
 to authenticated, service_role;
 
 -- Append-only log writers: signed-in users and the service role only —
