@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { dbAs } from "@/db/client";
 import { profiles, providerProfiles } from "@/db/schema";
 import { BOOKING_STATUS_LABELS, formatCents, loadBookingDetail } from "@/lib/bookings/queries";
+import { openBusinessThreadAction } from "@/app/(app)/b/messages/actions";
 import { requireActiveOrg } from "@/lib/org";
 import {
   cancelBookingAction,
@@ -104,6 +105,13 @@ export default async function BusinessBookingPage({
             </div>
           ) : null}
         </dl>
+        <form action={openBusinessThreadAction} className="mt-4">
+          <input type="hidden" name="opportunityId" value={booking.opportunityId} />
+          <input type="hidden" name="providerProfileId" value={booking.providerProfileId} />
+          <button type="submit" className="oc-btn-secondary">
+            Message {booking.providerName}
+          </button>
+        </form>
       </section>
 
       {dates.length > 0 ? (

@@ -4,6 +4,50 @@ Organized by what blocks coding vs. what can be decided later. Where a default i
 
 ## Decisions log (append-only)
 
+- **2026-06-12 — Phase 8 shipped (messaging).** Threads/participants/messages existed in
+  schema since Phase 1; this phase built everything on top. **Thread creation:** applying
+  creates the context-bound thread (USER_FLOWS §7.4) under the provider's own RLS; the
+  notify-event worker get-or-creates as a fallback for pre-Phase-8 applications. Org members
+  join lazily on first view (the participant row is ALSO what grants message visibility —
+  the list page shows "No messages yet" until a member opens the thread; deliberate).
+  **Send path:** `sendMessageInTx` (`src/lib/messaging/send.ts`) under the sender's RLS —
+  participant + not-locked enforced by policy, pre-reveal regex screen
+  (`contact-screen.ts`: email + NANP phone shapes, lookarounds against license/order-number
+  false positives) sets `contact_flagged`; warn-and-flag, never dropped (sender sees a
+  banner via redirect param). **Contact reveal is synchronous:** `acceptOfferAction` flips
+  `threads.contact_revealed_at` in the same transaction that creates the booking, so the
+  very next message can't be mis-flagged while the worker catches up (worker repeats it
+  idempotently via coalesce). **Unread counters:** SECURITY DEFINER trigger
+  (`drizzle/manual/0007_message_fanout.sql`) bumps `threads.last_message_at` + other
+  participants' `unread_count` on insert — the sender may only update their OWN participant
+  row (and system messages have no sender), same cross-RLS-writers reasoning as 0006.
+  `markThreadRead` (own-row, policy-allowed) resets. **System messages** (sender null —
+  only the service role can write them, the insert policy requires sender = auth.uid()):
+  worker posts applied/offered/confirmed/canceled milestones, idempotent on (thread, kind,
+  eventKey) since pg-boss retries. **message_received notifications:** new NotifyEvent;
+  recipient is the counterparty (provider's user ↔ opportunity poster, same convention as
+  every other event), category `messages` honors prefs, and a per-thread debounce skips
+  dispatch while an earlier message_received for that thread sits unread (no inbox
+  stacking; bell-open marks read, re-arming it). **UI:** `/p/messages` + `/b/messages`
+  lists (unread badges, last-message snippet — RLS-hidden until joined) and thread pages
+  with the COMPLIANCE §5 patient-info standing notice on every composer, pre-reveal notes,
+  locked-thread state, 20s `router.refresh()` polling (Supavisor → no realtime, same as the
+  bell); entry buttons on provider applications, business applicants, and both booking
+  detail pages; Messages tab in /p nav + card on /b dashboard. **Admin:** `/admin/threads`
+  (+ detail) — read-only, flagged messages marked, EVERY detail view writes a
+  `thread.viewed` row via `record_audit` (COMPLIANCE: admin review is logged). Tests: +11
+  (contact screen ± false positives, participant-only RLS incl. lazy join + locked-thread
+  both layers, flag pre/post-reveal, unread trigger + read reset, system-message
+  idempotency, notification prefs + debounce, applied-milestone retry, admin audit row) —
+  121 total. Hosted walkthrough with throwaway users: apply → thread → flagged phone
+  message (banner) → clean message (no flag) → owner lazy-join + reply → offer (terms) →
+  accept → contact revealed + post-reveal phone NOT flagged → all three system milestones
+  in-thread → bell debounce confirmed (2 notifications for 3 messages+apply); cleaned up
+  after. The /admin/threads click-through wasn't walked live (flipping a hosted user to
+  platform admin was out of session scope) — the data path is RLS-tested; founder can open
+  it with his admin account. No schema deviations; `scripts/walkthrough-phase8.ts` kept
+  (re-runnable demo arrangement, `--cleanup` to remove).
+
 - **2026-06-11 — Phase 7 shipped (applications & bookings).** Apply flow on `/o/[id]` for
   signed-in providers: whole-series or specific-dates scope (one row per date, the partial
   uniques dedup), optional message, **credential chips frozen onto the application**

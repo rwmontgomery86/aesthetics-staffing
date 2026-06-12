@@ -48,7 +48,8 @@ export type NotifyEvent =
   | { kind: "no_show_reported"; bookingId: string; occurrenceId: string; absent: "provider" | "business" }
   | { kind: "no_show_disputed"; bookingId: string; occurrenceId: string }
   | { kind: "completion_recorded"; completionRecordId: string }
-  | { kind: "completion_status"; completionRecordId: string; status: "confirmed" | "disputed" };
+  | { kind: "completion_status"; completionRecordId: string; status: "confirmed" | "disputed" }
+  | { kind: "message_received"; messageId: string };
 
 const globalForBoss = globalThis as unknown as { __pgBoss?: Promise<PgBoss> };
 

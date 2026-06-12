@@ -4,11 +4,16 @@ import {
   applications,
   bookings,
   completionRecords,
+  messages,
   opportunities,
   opportunityOccurrences,
+  organizations,
   providerProfiles,
+  threads,
 } from "@/db/schema";
 import { dispatchNotification, type DispatchInput } from "@/lib/notifications/dispatch";
+import { ensureParticipant, getOrCreateThread } from "@/lib/messaging/threads";
+import { postSystemMessage, type SystemKind } from "@/lib/messaging/system";
 import type { NotifyEvent } from "@/lib/queue";
 
 /**
@@ -53,8 +58,10 @@ async function loadApplications(ids: string[]) {
       scope: applications.scope,
       occurrenceId: applications.occurrenceId,
       opportunityId: opportunities.id,
+      organizationId: opportunities.organizationId,
       title: opportunities.title,
       posterUserId: opportunities.postedByUserId,
+      providerProfileId: providerProfiles.id,
       providerUserId: providerProfiles.userId,
       providerName: providerProfiles.displayName,
     })
@@ -64,6 +71,38 @@ async function loadApplications(ids: string[]) {
     .where(inArray(applications.id, ids));
 }
 
+/**
+ * Milestone marker in the conversation (USER_FLOWS §8.4). The worker, not
+ * the acting user, writes these: system messages have no sender, which only
+ * the service role may insert. Get-or-create covers threads that predate
+ * Phase 8, and the provider is joined so their unread counter ticks.
+ */
+async function postMilestone(input: {
+  opportunityId: string;
+  organizationId: string;
+  providerProfileId: string;
+  providerUserId: string;
+  applicationId?: string | null;
+  kind: SystemKind;
+  eventKey: string;
+  body: string;
+}): Promise<void> {
+  const thread = await getOrCreateThread(serviceDb, {
+    opportunityId: input.opportunityId,
+    organizationId: input.organizationId,
+    providerProfileId: input.providerProfileId,
+    applicationId: input.applicationId,
+  });
+  if (!thread) return;
+  await ensureParticipant(serviceDb, thread.id, input.providerUserId);
+  await postSystemMessage(serviceDb, {
+    threadId: thread.id,
+    kind: input.kind,
+    eventKey: input.eventKey,
+    body: input.body,
+  });
+}
+
 async function loadBooking(bookingId: string) {
   const [row] = await serviceDb
     .select({
@@ -71,6 +110,7 @@ async function loadBooking(bookingId: string) {
       scope: bookings.scope,
       status: bookings.status,
       opportunityId: opportunities.id,
+      organizationId: opportunities.organizationId,
       title: opportunities.title,
       posterUserId: opportunities.postedByUserId,
       opportunityStatus: opportunities.status,
@@ -105,6 +145,13 @@ export async function notifyEventJob(event: NotifyEvent): Promise<void> {
         actionUrl: `${appUrl()}/b/opportunities/${first.opportunityId}/applicants`,
         requested: { email: true, sms: false },
       });
+      await postMilestone({
+        ...first,
+        applicationId: first.id,
+        kind: "applied",
+        eventKey: `applied:${first.id}`,
+        body: `${first.providerName} applied for ${datesPhrase(rows)}.`,
+      });
       return;
     }
 
@@ -136,6 +183,12 @@ export async function notifyEventJob(event: NotifyEvent): Promise<void> {
         body: `The business selected you for ${datesPhrase(rows)}. Review the booking terms and confirm to lock it in.`,
         actionUrl: `${appUrl()}/p/applications`,
         requested: { email: true, sms: true },
+      });
+      await postMilestone({
+        ...first,
+        kind: "offered",
+        eventKey: `offered:${first.id}`,
+        body: `Offer sent: ${first.providerName} was selected for ${datesPhrase(rows)} — pending their confirmation.`,
       });
       return;
     }
@@ -189,6 +242,23 @@ export async function notifyEventJob(event: NotifyEvent): Promise<void> {
         actionUrl: `${appUrl()}/b/bookings/${booking.id}`,
         requested: { email: true, sms: true },
       });
+      // Contact reveal: normally already flipped synchronously by the accept
+      // action; this idempotent repeat covers any other path to a booking.
+      await serviceDb
+        .update(threads)
+        .set({ bookingId: booking.id, contactRevealedAt: sql`coalesce(contact_revealed_at, now())` })
+        .where(
+          and(
+            eq(threads.opportunityId, booking.opportunityId),
+            eq(threads.providerProfileId, booking.providerProfileId),
+          ),
+        );
+      await postMilestone({
+        ...booking,
+        kind: "confirmed",
+        eventKey: `confirmed:${booking.id}`,
+        body: "Booking confirmed — contact details are now visible to both sides.",
+      });
       await closeCompetingApplications(booking);
       return;
     }
@@ -222,6 +292,12 @@ export async function notifyEventJob(event: NotifyEvent): Promise<void> {
           requested: { email: true, sms: true },
         });
       }
+      await postMilestone({
+        ...booking,
+        kind: "canceled",
+        eventKey,
+        body: `${what} by ${event.by === "provider" ? booking.providerName : "the business"}.`,
+      });
       return;
     }
 
@@ -313,6 +389,61 @@ export async function notifyEventJob(event: NotifyEvent): Promise<void> {
             ? "Both sides now agree on the record — it's ready for your books."
             : "Check the record details on the booking page and talk it through; our team can help if you can't agree.",
         actionUrl: `${appUrl()}/b/bookings/${booking.id}`,
+        requested: { email: true, sms: false },
+      });
+      return;
+    }
+
+    case "message_received": {
+      const [row] = await serviceDb
+        .select({
+          messageId: messages.id,
+          body: messages.body,
+          senderUserId: messages.senderUserId,
+          threadId: threads.id,
+          providerUserId: providerProfiles.userId,
+          providerName: providerProfiles.displayName,
+          posterUserId: opportunities.postedByUserId,
+          title: opportunities.title,
+          orgName: organizations.name,
+        })
+        .from(messages)
+        .innerJoin(threads, eq(threads.id, messages.threadId))
+        .innerJoin(providerProfiles, eq(providerProfiles.id, threads.providerProfileId))
+        .innerJoin(opportunities, eq(opportunities.id, threads.opportunityId))
+        .innerJoin(organizations, eq(organizations.id, threads.organizationId))
+        .where(eq(messages.id, event.messageId));
+      if (!row || row.senderUserId == null) return; // system messages don't notify
+
+      // Same counterparty convention as every other event: the provider's
+      // user on one side, the opportunity poster on the other.
+      const providerSent = row.senderUserId === row.providerUserId;
+      const recipient = providerSent ? row.posterUserId : row.providerUserId;
+      const senderName = providerSent ? row.providerName : row.orgName;
+      const threadUrl = providerSent
+        ? `${appUrl()}/b/messages/${row.threadId}`
+        : `${appUrl()}/p/messages/${row.threadId}`;
+
+      // Debounce: while an earlier message in this thread sits unread in the
+      // bell, stacking another notification (and email) helps nobody.
+      const pending = await serviceDb.execute<{ id: string }>(sql`
+        select id from notifications
+        where user_id = ${recipient} and kind = 'message_received'
+          and payload ->> 'threadId' = ${row.threadId} and read_at is null
+        limit 1
+      `);
+      if (pending.rows.length > 0) return;
+
+      await sendOnce(`message:${row.messageId}`, {
+        userId: recipient,
+        category: "messages",
+        kind: "message_received",
+        title: `New message from ${senderName}`,
+        body:
+          `On "${row.title}": ` +
+          (row.body.length > 140 ? `${row.body.slice(0, 140)}…` : row.body),
+        actionUrl: threadUrl,
+        payload: { threadId: row.threadId },
         requested: { email: true, sms: false },
       });
       return;

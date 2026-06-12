@@ -13,6 +13,7 @@ import { SnapshotChips } from "@/components/SnapshotChips";
 import { TermsBox } from "@/components/TermsBox";
 import type { CredentialSnapshotChip } from "@/lib/credentials/requirements";
 import { requireActiveOrg } from "@/lib/org";
+import { openBusinessThreadAction } from "@/app/(app)/b/messages/actions";
 import { declineApplicantAction, offerApplicantAction, shortlistApplicantAction } from "./actions";
 
 export const metadata = { title: "Applicants" };
@@ -267,6 +268,14 @@ export default async function ApplicantsPage({
                     </div>
                   </div>
                 ) : null}
+
+                <form action={openBusinessThreadAction} className="mt-3">
+                  <input type="hidden" name="opportunityId" value={opp.id} />
+                  <input type="hidden" name="providerProfileId" value={providerProfileId} />
+                  <button type="submit" className="text-sm text-lilac underline hover:text-ink">
+                    Message {first.providerName}
+                  </button>
+                </form>
               </div>
             );
           })}

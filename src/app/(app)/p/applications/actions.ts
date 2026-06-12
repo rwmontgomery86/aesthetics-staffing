@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
-import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { dbAs, type Tx } from "@/db/client";
 import {
@@ -11,6 +11,7 @@ import {
   bookings,
   opportunities,
   opportunityOccurrences,
+  threads,
 } from "@/db/schema";
 import { getAuthUser } from "@/lib/auth/session";
 import { providerInTx } from "@/lib/provider";
@@ -161,6 +162,20 @@ export async function acceptOfferAction(formData: FormData) {
         .update(applications)
         .set({ status: "accepted", statusChangedAt: now })
         .where(inArray(applications.id, offered.map((row) => row.id)));
+
+      // Contact reveal flips the moment the booking exists — synchronously,
+      // so the very next message isn't contact-flagged while the worker
+      // catches up. The worker repeats this idempotently for safety.
+      await tx
+        .update(threads)
+        .set({ bookingId: id, contactRevealedAt: now })
+        .where(
+          and(
+            eq(threads.opportunityId, opportunityId),
+            eq(threads.providerProfileId, provider.id),
+            isNull(threads.contactRevealedAt),
+          ),
+        );
 
       await tx.execute(sql`
         select public.record_audit(

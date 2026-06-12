@@ -140,6 +140,13 @@ export default async function BusinessDashboard({
         </div>
       ) : null}
 
+      <Link href="/b/messages" className="oc-card mt-3 block p-4 hover:border-lilac">
+        <p className="font-semibold">Messages</p>
+        <p className="text-sm text-ink-soft">
+          Conversations with applicants and booked providers.
+        </p>
+      </Link>
+
       <div className="mt-8 space-y-3">
         <ChecklistItem
           done={profileDone}

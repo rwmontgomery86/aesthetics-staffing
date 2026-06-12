@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { getAuthUser } from "@/lib/auth/session";
 import { getOpportunityCredentialChips } from "@/lib/credentials/requirements";
+import { ensureParticipant, getOrCreateThread } from "@/lib/messaging/threads";
 import { enqueueNotifyEvent, tryEnqueue } from "@/lib/queue";
 
 function fail(backTo: string, message: string): never {
@@ -167,6 +168,16 @@ export async function applyAction(formData: FormData) {
         target: [profileAccessGrants.providerProfileId, profileAccessGrants.organizationId],
         set: { revokedAt: null, grantedVia: "application", applicationId: inserted[0].id },
       });
+
+    // Applying opens the conversation (USER_FLOWS §7.4) — the business joins
+    // lazily on first view, and the worker drops the "applied" milestone in.
+    const thread = await getOrCreateThread(tx, {
+      opportunityId: opp.id,
+      organizationId: opp.organizationId,
+      providerProfileId: provider.id,
+      applicationId: inserted[0].id,
+    });
+    if (thread) await ensureParticipant(tx, thread.id, user.id);
 
     return inserted.map((row) => row.id);
   });

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { DateTime } from "luxon";
 import { dbAs } from "@/db/client";
 import { BOOKING_STATUS_LABELS, formatCents, loadBookingDetail } from "@/lib/bookings/queries";
+import { openProviderThreadAction } from "@/app/(app)/p/messages/actions";
 import { requireProviderRow } from "@/lib/provider";
 import {
   cancelBookingAction,
@@ -103,6 +104,12 @@ export default async function ProviderBookingPage({
             </div>
           ) : null}
         </dl>
+        <form action={openProviderThreadAction} className="mt-4">
+          <input type="hidden" name="opportunityId" value={booking.opportunityId} />
+          <button type="submit" className="oc-btn-secondary">
+            Message the business
+          </button>
+        </form>
       </section>
 
       {dates.length > 0 ? (

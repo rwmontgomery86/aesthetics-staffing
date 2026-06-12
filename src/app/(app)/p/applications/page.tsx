@@ -11,6 +11,7 @@ import {
 import { TermsBox } from "@/components/TermsBox";
 import { opportunityTypeLabel } from "@/lib/opportunity-types";
 import { requireProviderRow } from "@/lib/provider";
+import { openProviderThreadAction } from "../messages/actions";
 import { acceptOfferAction, declineOfferAction, withdrawApplicationAction } from "./actions";
 
 export const metadata = { title: "My applications" };
@@ -178,6 +179,15 @@ export default async function ApplicationsPage({
                     <input type="hidden" name="opportunityId" value={opportunityId} />
                     <button type="submit" className="text-sm text-ink-soft underline hover:text-danger">
                       Withdraw application
+                    </button>
+                  </form>
+                ) : null}
+
+                {first.title ? (
+                  <form action={openProviderThreadAction} className="mt-2">
+                    <input type="hidden" name="opportunityId" value={opportunityId} />
+                    <button type="submit" className="text-sm text-lilac underline hover:text-ink">
+                      Message business
                     </button>
                   </form>
                 ) : null}
